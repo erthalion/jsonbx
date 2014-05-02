@@ -1,0 +1,5 @@
+# test extension
+comment = 'Jsonb extension'
+default_version = '1.0'
+module_pathname = '$libdir/jsonbx'
+relocatable = true
