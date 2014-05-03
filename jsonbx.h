@@ -3,7 +3,7 @@
 
 
 typedef enum JsonbOutputKind {
-	PrettyPrint = 0x10
+    PrettyPrint = 0x10
 } JsonbOutputKind;
 
 

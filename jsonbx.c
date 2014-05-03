@@ -20,38 +20,38 @@ static void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
 Datum
 jsonb_print(PG_FUNCTION_ARGS)
 {
-	Jsonb		    *jb = PG_GETARG_JSONB(0);
-	text 		    *out;
-	int 		    flags = 0;
-	StringInfo  	str = makeStringInfo();
+    Jsonb           *jb = PG_GETARG_JSONB(0);
+    text            *out;
+    int             flags = 0;
+    StringInfo      str = makeStringInfo();
 
-	if (PG_GETARG_BOOL(1))
-		flags |= PrettyPrint;
+    if (PG_GETARG_BOOL(1))
+        flags |= PrettyPrint;
 
     appendBinaryStringInfo(str, "    ", 4); /* VARHDRSZ */
     JsonbToCStringExtended(str, VARDATA(jb), VARSIZE(jb), flags);
 
-	out = (text*)str->data;
-	SET_VARSIZE(out, str->len);
+    out = (text*)str->data;
+    SET_VARSIZE(out, str->len);
 
-	PG_RETURN_TEXT_P(out);
+    PG_RETURN_TEXT_P(out);
 }
 
 
 /*
  * JsonbToCStringExtended
- *	   Converts jsonb value to a C-string (take JsonbOutputKind into account).
+ *       Converts jsonb value to a C-string (take JsonbOutputKind into account).
  * See the original function JsonbToCString in the jsonb.c
  */
 char *
 JsonbToCStringExtended(StringInfo out, JsonbSuperHeader in, int estimated_len, JsonbOutputKind kind)
 {
-    bool		first = true;
+    bool           first = true;
     JsonbIterator *it;
-    int			type = 0;
-    JsonbValue	v;
-    int			level = 0;
-    bool		redo_switch = false;
+    int            type = 0;
+    JsonbValue     v;
+    int            level = 0;
+    bool           redo_switch = false;
 
     if (out == NULL)
         out = makeStringInfo();
@@ -178,38 +178,38 @@ printCR(StringInfo out, JsonbOutputKind kind)
 static void
 printIndent(StringInfo out, JsonbOutputKind kind, int level)
 {
-	if (kind & PrettyPrint)
-	{
-		int i;
-		for(i=0; i<4*level; i++)
-			appendStringInfoCharMacro(out, ' ');
-	}
+    if (kind & PrettyPrint)
+    {
+        int i;
+        for(i=0; i<4*level; i++)
+            appendStringInfoCharMacro(out, ' ');
+    }
 }
 
 
 static void
 jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal)
 {
-	switch (scalarVal->type)
-	{
-		case jbvNull:
-			appendBinaryStringInfo(out, "null", 4);
-			break;
-		case jbvString:
-			escape_json(out, pnstrdup(scalarVal->val.string.val, scalarVal->val.string.len));
-			break;
-		case jbvNumeric:
-			appendStringInfoString(out,
-								   DatumGetCString(DirectFunctionCall1(numeric_out,
-																	   PointerGetDatum(scalarVal->val.numeric))));
-			break;
-		case jbvBool:
-			if (scalarVal->val.boolean)
-				appendBinaryStringInfo(out, "true", 4);
-			else
-				appendBinaryStringInfo(out, "false", 5);
-			break;
-		default:
-			elog(ERROR, "unknown jsonb scalar type");
-	}
+    switch (scalarVal->type)
+    {
+        case jbvNull:
+            appendBinaryStringInfo(out, "null", 4);
+            break;
+        case jbvString:
+            escape_json(out, pnstrdup(scalarVal->val.string.val, scalarVal->val.string.len));
+            break;
+        case jbvNumeric:
+            appendStringInfoString(out,
+                                   DatumGetCString(DirectFunctionCall1(numeric_out,
+                                                                       PointerGetDatum(scalarVal->val.numeric))));
+            break;
+        case jbvBool:
+            if (scalarVal->val.boolean)
+                appendBinaryStringInfo(out, "true", 4);
+            else
+                appendBinaryStringInfo(out, "false", 5);
+            break;
+        default:
+            elog(ERROR, "unknown jsonb scalar type");
+    }
 }
