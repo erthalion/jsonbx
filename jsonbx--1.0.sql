@@ -6,3 +6,8 @@ CREATE FUNCTION jsonb_print(jsonb, pretty_print bool DEFAULT false)
 RETURNS text
 AS 'MODULE_PATHNAME', 'jsonb_print'
 LANGUAGE C STRICT;
+
+CREATE FUNCTION jsonb_concat(jsonb, jsonb)
+RETURNS jsonb
+AS 'MODULE_PATHNAME', 'jsonb_concat'
+LANGUAGE C STRICT;
