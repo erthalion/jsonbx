@@ -17,40 +17,6 @@ Datum jsonb_print(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_concat);
 Datum jsonb_concat(PG_FUNCTION_ARGS);
 
-/*
- * State used while converting an arbitrary JsonbValue into a Jsonb value
- * (4-byte varlena uncompressed representation of a Jsonb)
- *
- * ConvertLevel:  Bookkeeping around particular level when converting.
- */
-typedef struct convertLevel
-{
-	uint32		i;		/* Iterates once per element, or once per pair */
-	uint32	   *header; /* Pointer to current container header */
-	JEntry	   *meta;	/* This level's metadata */
-	char	   *begin;	/* Pointer into convertState.buffer */
-} convertLevel;
-
-/*
- * convertState:  Overall bookkeeping state for conversion
- */
-typedef struct convertState
-{
-	/* Preallocated buffer in which to form varlena/Jsonb value */
-	Jsonb			   *buffer;
-	/* Pointer into buffer */
-	char			   *ptr;
-
-	/* State for  */
-	convertLevel	   *allState,	/* Overall state array */
-					   *contPtr;	/* Cur container pointer (in allState) */
-
-	/* Current size of buffer containing allState array */
-	Size				levelSz;
-
-}	convertState;
-
-
 char * JsonbToCStringExtended(StringInfo out, JsonbContainer in, int estimated_len, JsonbOutputKind kind);
 static void printCR(StringInfo out, JsonbOutputKind kind);
 static void printIndent(StringInfo out, JsonbOutputKind kind, int level);
