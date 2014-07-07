@@ -278,108 +278,53 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 
     if (rk1 == WJB_BEGIN_OBJECT && rk2 == WJB_BEGIN_OBJECT)
     {
-        bool            fin2 = false,
-                        keyIsDef = false;
+        int             level = 1;
 
         res = pushJsonbValue(state, r1, &v1);
-
         for(;;)
         {
-            r1 = JsonbIteratorNext(it1, &v1, true);
+            r1 = JsonbIteratorNext(it1, &v1, false);
 
-            Assert(r1 == WJB_KEY || r1 == WJB_VALUE || r1 == WJB_END_OBJECT);
-
-            if (r1 == WJB_KEY && fin2 == false)
-            {
-                int diff  = 1;
-
-                if (keyIsDef)
-                    r2 = WJB_KEY;
-
-                while(keyIsDef || (r2 = JsonbIteratorNext(it2, &v2, true)) != 0)
-                {
-                    if (r2 != WJB_KEY)
-                        continue;
-
-                    /*diff = lengthCompareJsonbStringValue(&v1, &v2, NULL);*/
-                    diff = lexicalCompareJsonbStringValue(&v1, &v2);
-
-                    if (diff > 0)
-                    {
-                        if (keyIsDef)
-                            keyIsDef = false;
-
-                        pushJsonbValue(state, r2, &v2);
-                        r2 = JsonbIteratorNext(it2, &v2, true);
-                        Assert(r2 == WJB_VALUE);
-                        pushJsonbValue(state, r2, &v2);
-                    }
-                    else if (diff <= 0)
-                    {
-                        break;
-                    }
-                }
-
-                if (r2 == 0)
-                {
-                    fin2 = true;
-                }
-                else if (diff == 0)
-                {
-                    keyIsDef = false;
-
-                    pushJsonbValue(state, r1, &v1);
-
-                    r1 = JsonbIteratorNext(it1, &v1, true); // ignore
-                    r2 = JsonbIteratorNext(it2, &v2, true); // new val
-
-                    Assert(r1 == WJB_VALUE && r2 == WJB_VALUE);
-                    pushJsonbValue(state, r2, &v2);
-
-                    continue;
-                }
-                else
-                {
-                    keyIsDef = true;
-                }
+            if (r1 == WJB_BEGIN_OBJECT) {
+                ++level;
             }
-            else if (r1 == WJB_END_OBJECT)
-            {
-                if (r2 != 0)
-                {
-                    if (keyIsDef)
-                        r2 = WJB_KEY;
 
-                    while(keyIsDef ||
-                          (r2 = JsonbIteratorNext(it2, &v2, true)) != 0)
-                    {
-                        if (r2 != WJB_KEY)
-                            continue;
+            if (r1 == WJB_END_OBJECT) {
+                --level;
+            }
 
-                        pushJsonbValue(state, r2, &v2);
-                        r2 = JsonbIteratorNext(it2, &v2, true);
-                        Assert(r2 == WJB_VALUE);
-                        pushJsonbValue(state, r2, &v2);
-                        keyIsDef = false;
-                    }
-                }
-
+            if (level != 0) {
                 res = pushJsonbValue(state, r1, &v1);
+            }
+            else {
                 break;
             }
-
-            res = pushJsonbValue(state, r1, &v1);
         }
+
+        level = 1;
+        for(;;)
+        {
+            r2 = JsonbIteratorNext(it2, &v2, false);
+
+            if (r2 == WJB_BEGIN_OBJECT) {
+                ++level;
+            }
+
+            if (r2 == WJB_END_OBJECT) {
+                --level;
+            }
+
+            res = pushJsonbValue(state, r2, &v2);
+            if (level == 0) {
+                break;
+            }
+        }
+
     }
     else if ((rk1 == WJB_BEGIN_OBJECT || rk1 == WJB_BEGIN_ARRAY) &&
              (rk2 == WJB_BEGIN_OBJECT || rk2 == WJB_BEGIN_ARRAY))
     {
-        if (rk1 == WJB_BEGIN_OBJECT && rk2 == WJB_BEGIN_ARRAY &&
-            v2.val.array.nElems % 2 != 0)
-            elog(ERROR, "hstore's array must have even number of elements");
-
         res = pushJsonbValue(state, r1, &v1);
-
         for(;;)
         {
             r1 = JsonbIteratorNext(it1, &v1, true);
@@ -395,7 +340,6 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
             {
                 if (rk1 == WJB_BEGIN_OBJECT)
                 {
-                    /*convertScalarToString(&v2);*/
                     pushJsonbValue(state, WJB_KEY, &v2);
                     r2 = JsonbIteratorNext(it2, &v2, true);
                     Assert(r2 == WJB_ELEM);
