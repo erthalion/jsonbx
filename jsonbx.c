@@ -23,7 +23,6 @@ static void printIndent(StringInfo out, JsonbOutputKind kind, int level);
 static void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
 
 static JsonbValue * IteratorConcat(JsonbIterator **it1, JsonbIterator **it2, JsonbParseState **state);
-static int lexicalCompareJsonbStringValue(const void *a, const void *b);
 
 Datum
 jsonb_print(PG_FUNCTION_ARGS)
@@ -281,45 +280,24 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
         int             level = 1;
 
         res = pushJsonbValue(state, r1, &v1);
-        for(;;)
+        while((r1 = JsonbIteratorNext(it1, &v1, false)) != 0)
         {
-            r1 = JsonbIteratorNext(it1, &v1, false);
-
             if (r1 == WJB_BEGIN_OBJECT) {
                 ++level;
             }
-
-            if (r1 == WJB_END_OBJECT) {
+            else if (r1 == WJB_END_OBJECT) {
                 --level;
             }
 
             if (level != 0) {
                 res = pushJsonbValue(state, r1, &v1);
             }
-            else {
-                break;
-            }
         }
 
-        level = 1;
-        for(;;)
+        while((r2 = JsonbIteratorNext(it2, &v2, false)) != 0)
         {
-            r2 = JsonbIteratorNext(it2, &v2, false);
-
-            if (r2 == WJB_BEGIN_OBJECT) {
-                ++level;
-            }
-
-            if (r2 == WJB_END_OBJECT) {
-                --level;
-            }
-
             res = pushJsonbValue(state, r2, &v2);
-            if (level == 0) {
-                break;
-            }
         }
-
     }
     else if ((rk1 == WJB_BEGIN_OBJECT || rk1 == WJB_BEGIN_ARRAY) &&
              (rk2 == WJB_BEGIN_OBJECT || rk2 == WJB_BEGIN_ARRAY))
@@ -377,24 +355,4 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
     }
 
     return res;
-}
-
-
-/*
- * Standard lexical qsort() comparator of jsonb strings.
- *
- * Sorts strings lexically, using the default database collation.  Used by
- * B-Tree operators, where a lexical sort order is generally expected.
- */
-static int
-lexicalCompareJsonbStringValue(const void *a, const void *b)
-{
-	const JsonbValue *va = (const JsonbValue *) a;
-	const JsonbValue *vb = (const JsonbValue *) b;
-
-	Assert(va->type == jbvString);
-	Assert(vb->type == jbvString);
-
-	return varstr_cmp(va->val.string.val, va->val.string.len, vb->val.string.val,
-					  vb->val.string.len, DEFAULT_COLLATION_OID);
 }
