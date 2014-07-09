@@ -17,7 +17,7 @@ Datum jsonb_print(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_concat);
 Datum jsonb_concat(PG_FUNCTION_ARGS);
 
-char * JsonbToCStringExtended(StringInfo out, JsonbContainer in, int estimated_len, JsonbOutputKind kind);
+char * JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, JsonbOutputKind kind);
 static void printCR(StringInfo out, JsonbOutputKind kind);
 static void printIndent(StringInfo out, JsonbOutputKind kind, int level);
 static void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
@@ -36,7 +36,7 @@ jsonb_print(PG_FUNCTION_ARGS)
         flags |= PrettyPrint;
 
     appendBinaryStringInfo(str, "    ", 4); /* VARHDRSZ */
-    JsonbToCStringExtended(str, jb->root, VARSIZE(jb), flags);
+    JsonbToCStringExtended(str, &jb->root, VARSIZE(jb), flags);
 
     out = (text*)str->data;
     SET_VARSIZE(out, str->len);
@@ -94,7 +94,7 @@ jsonb_concat(PG_FUNCTION_ARGS)
  * See the original function JsonbToCString in the jsonb.c
  */
 char *
-JsonbToCStringExtended(StringInfo out, JsonbContainer in, int estimated_len, JsonbOutputKind kind)
+JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, JsonbOutputKind kind)
 {
     bool           first = true;
     JsonbIterator *it;
@@ -108,7 +108,7 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer in, int estimated_len, Jso
 
     enlargeStringInfo(out, (estimated_len >= 0) ? estimated_len : 64);
 
-    it = JsonbIteratorInit(&in);
+    it = JsonbIteratorInit(in);
 
     while (redo_switch ||
            ((type = JsonbIteratorNext(&it, &v, false)) != WJB_DONE))
@@ -118,14 +118,17 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer in, int estimated_len, Jso
         {
             case WJB_BEGIN_ARRAY:
                 if (!first)
+                {
                     appendBinaryStringInfo(out, ", ", 2);
+                }
                 first = true;
 
                 if (!v.val.array.rawScalar)
+                {
                     printCR(out, kind);
                     printIndent(out, kind, level);
-
                     appendStringInfoChar(out, '[');
+                }
                 level++;
 
                 printCR(out, kind);
@@ -175,15 +178,15 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer in, int estimated_len, Jso
                 }
                 break;
             case WJB_ELEM:
-                if (!first) {
+                if (!first)
+                {
                     appendBinaryStringInfo(out, ", ", 2);
 
                     printCR(out, kind);
                     printIndent(out, kind, level);
                 }
-                else {
+                else
                     first = false;
-                }
 
                 jsonb_put_escaped_value(out, &v);
                 break;
@@ -221,8 +224,10 @@ static void
 printCR(StringInfo out, JsonbOutputKind kind)
 {
     if (kind & PrettyPrint)
+    {
         appendBinaryStringInfo(out, "    ", 4);
         appendStringInfoCharMacro(out, '\n');
+    }
 }
 
 static void
@@ -232,7 +237,9 @@ printIndent(StringInfo out, JsonbOutputKind kind, int level)
     {
         int i;
         for(i=0; i<4*level; i++)
+        {
             appendStringInfoCharMacro(out, ' ');
+        }
     }
 }
 
