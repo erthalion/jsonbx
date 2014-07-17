@@ -55,6 +55,10 @@ jsonb_concat(PG_FUNCTION_ARGS)
     JsonbValue       *res;
     JsonbIterator    *it1, *it2;
 
+    /*
+     * If one of the jsonb is empty,
+     * just return other.
+     */
     if (JB_ROOT_COUNT(jb1) == 0)
     {
         memcpy(out, jb2, VARSIZE(jb2));
@@ -272,6 +276,13 @@ jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal)
 }
 
 
+/*
+ * Iterate over all jsonb objects and merge them into one.
+ * The logic of this function copied from the same hstore function,
+ * except the case, when it1 & it2 represents jbvObject.
+ * In that case we just append the content of it2 to it1 without any
+ * verifications.
+ */
 static JsonbValue *
 IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
         JsonbParseState **state)
@@ -284,8 +295,12 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 
     if (rk1 == WJB_BEGIN_OBJECT && rk2 == WJB_BEGIN_OBJECT)
     {
-        int             level = 1;
+        int           level = 1;
 
+        /*
+         * Append the all tokens from v1 to res, exept
+         * last WJB_END_OBJECT (because res will not be finished yet).
+         */
         res = pushJsonbValue(state, r1, &v1);
         while((r1 = JsonbIteratorNext(it1, &v1, false)) != 0)
         {
@@ -301,6 +316,10 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
             }
         }
 
+        /*
+         * Append the all tokens from v2 to res, include
+         * last WJB_END_OBJECT (the concatenation will be completed). 
+         */
         while((r2 = JsonbIteratorNext(it2, &v2, false)) != 0)
         {
             res = pushJsonbValue(state, r2, &v2);
