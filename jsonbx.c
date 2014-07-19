@@ -293,6 +293,9 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
     r1 = rk1 = JsonbIteratorNext(it1, &v1, false);
     r2 = rk2 = JsonbIteratorNext(it2, &v2, false);
 
+    /*
+     * Both elements are objects.
+     */
     if (rk1 == WJB_BEGIN_OBJECT && rk2 == WJB_BEGIN_OBJECT)
     {
         int           level = 1;
@@ -325,6 +328,9 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
             res = pushJsonbValue(state, r2, &v2);
         }
     }
+    /*
+     * One of the elements is array.
+     */
     else if ((rk1 == WJB_BEGIN_OBJECT || rk1 == WJB_BEGIN_ARRAY) &&
              (rk2 == WJB_BEGIN_OBJECT || rk2 == WJB_BEGIN_ARRAY))
     {
@@ -360,6 +366,9 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
                               (rk1 == WJB_BEGIN_OBJECT) ? WJB_END_OBJECT : WJB_END_ARRAY,
                               NULL/* signal to sort */);
     }
+    /*
+     * Concat the value or element with the array.
+     */
     else if ((rk1 & (WJB_VALUE | WJB_ELEM)) != 0)
     {
         if (v2.type == jbvArray && v2.val.array.rawScalar)
@@ -377,7 +386,7 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
     }
     else
     {
-        elog(ERROR, "invalid concatnation of hstores");
+        elog(ERROR, "invalid concatnation of jsonb objects");
     }
 
     return res;
