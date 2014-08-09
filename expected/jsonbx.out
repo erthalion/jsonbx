@@ -29,3 +29,57 @@ select jsonb_concat('{"d": "test", "a": [1, 2]}'::jsonb, '{"g": "test2", "c": {"
  {"a": [1, 2], "c": {"c1": 1, "c2": 2}, "d": "test", "g": "test2"}
 (1 row)
 
+select '{"aa":1 , "b":2, "cq":3}'::jsonb || '{"cq":"l", "b":"g", "fg":false}';
+                  ?column?                   
+---------------------------------------------
+ {"b": "g", "aa": 1, "cq": "l", "fg": false}
+(1 row)
+
+select '{"aa":1 , "b":2, "cq":3}'::jsonb || '{"aq":"l"}';
+               ?column?                
+---------------------------------------
+ {"b": 2, "aa": 1, "aq": "l", "cq": 3}
+(1 row)
+
+select '{"aa":1 , "b":2, "cq":3}'::jsonb || '{"aa":"l"}';
+           ?column?           
+------------------------------
+ {"b": 2, "aa": "l", "cq": 3}
+(1 row)
+
+select '{"aa":1 , "b":2, "cq":3}'::jsonb || '{}';
+          ?column?          
+----------------------------
+ {"b": 2, "aa": 1, "cq": 3}
+(1 row)
+
+select '{}'::jsonb || '{"cq":"l", "b":"g", "fg":false}';
+              ?column?              
+------------------------------------
+ {"b": "g", "cq": "l", "fg": false}
+(1 row)
+
+select pg_column_size('{}'::jsonb || '{}'::jsonb) = pg_column_size('{}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+
+select pg_column_size('{"aa":1}'::jsonb || '{"b":2}'::jsonb) = pg_column_size('{"aa":1, "b":2}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+
+select pg_column_size('{"aa":1, "b":2}'::jsonb || '{}'::jsonb) = pg_column_size('{"aa":1, "b":2}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+
+select pg_column_size('{}'::jsonb || '{"aa":1, "b":2}'::jsonb) = pg_column_size('{"aa":1, "b":2}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+

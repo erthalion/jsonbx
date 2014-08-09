@@ -11,3 +11,9 @@ CREATE FUNCTION jsonb_concat(jsonb, jsonb)
 RETURNS jsonb
 AS 'MODULE_PATHNAME', 'jsonb_concat'
 LANGUAGE C STRICT;
+
+CREATE OPERATOR || (
+	LEFTARG = jsonb,
+	RIGHTARG = jsonb,
+	PROCEDURE = jsonb_concat
+);
