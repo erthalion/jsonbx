@@ -83,3 +83,69 @@ select pg_column_size('{}'::jsonb || '{"aa":1, "b":2}'::jsonb) = pg_column_size(
  t
 (1 row)
 
+select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'a');
+   jsonb_delete   
+------------------
+ {"b": 2, "c": 3}
+(1 row)
+
+select jsonb_delete('{"a":null , "b":2, "c":3}'::jsonb, 'a');
+   jsonb_delete   
+------------------
+ {"b": 2, "c": 3}
+(1 row)
+
+select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'b');
+   jsonb_delete   
+------------------
+ {"a": 1, "c": 3}
+(1 row)
+
+select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'c');
+   jsonb_delete   
+------------------
+ {"a": 1, "b": 2}
+(1 row)
+
+select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'd');
+       jsonb_delete       
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select '{"a":1 , "b":2, "c":3}'::jsonb - 'a'::text;
+     ?column?     
+------------------
+ {"b": 2, "c": 3}
+(1 row)
+
+select '{"a":null , "b":2, "c":3}'::jsonb - 'a'::text;
+     ?column?     
+------------------
+ {"b": 2, "c": 3}
+(1 row)
+
+select '{"a":1 , "b":2, "c":3}'::jsonb - 'b'::text;
+     ?column?     
+------------------
+ {"a": 1, "c": 3}
+(1 row)
+
+select '{"a":1 , "b":2, "c":3}'::jsonb - 'c'::text;
+     ?column?     
+------------------
+ {"a": 1, "b": 2}
+(1 row)
+
+select '{"a":1 , "b":2, "c":3}'::jsonb - 'd'::text;
+         ?column?         
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select pg_column_size('{"a":1 , "b":2, "c":3}'::jsonb - 'b'::text) = pg_column_size('{"a":1, "b":2}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+
