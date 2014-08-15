@@ -8,8 +8,10 @@ List of the implemented functions
 
 * jsonb_print
 * jsonb_concat
+* jsonb_delete(jsonb, text)
 
 List of the implemented operators
 ---------------------------------
 
 * concatenation operator (||)
+* delete key operator (jsonb - text)
