@@ -17,6 +17,9 @@ Datum jsonb_print(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_concat);
 Datum jsonb_concat(PG_FUNCTION_ARGS);
 
+PG_FUNCTION_INFO_V1(jsonb_delete);
+Datum jsonb_delete(PG_FUNCTION_ARGS);
+
 char * JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, JsonbOutputKind kind);
 static void printCR(StringInfo out, JsonbOutputKind kind);
 static void printIndent(StringInfo out, JsonbOutputKind kind, int level);
@@ -85,6 +88,63 @@ jsonb_concat(PG_FUNCTION_ARGS)
         if (res->type == jbvArray && res->val.array.nElems > 1)
             res->val.array.rawScalar = false;
 
+        out = JsonbValueToJsonb(res);
+    }
+
+    PG_RETURN_POINTER(out);
+}
+
+
+Datum
+jsonb_delete(PG_FUNCTION_ARGS)
+{
+    Jsonb              *in = PG_GETARG_JSONB(0);
+    text               *key = PG_GETARG_TEXT_PP(1);
+    char               *keyptr = VARDATA_ANY(key);
+    int                 keylen = VARSIZE_ANY_EXHDR(key);
+    Jsonb              *out = palloc(VARSIZE(in));
+    JsonbParseState    *state = NULL;
+    JsonbIterator      *it;
+    uint32              r;
+    JsonbValue          v, *res = NULL;
+    bool                skipNested = false;
+
+    SET_VARSIZE(out, VARSIZE(in));
+
+    if (JB_ROOT_COUNT(in) == 0)
+    {
+        PG_RETURN_POINTER(out);
+    }
+
+    it = JsonbIteratorInit(&in->root);
+
+    while((r = JsonbIteratorNext(&it, &v, skipNested)) != 0)
+    {
+        skipNested = true;
+
+        if ((r == WJB_ELEM || r == WJB_KEY) &&
+            (v.type == jbvString && keylen == v.val.string.len &&
+             memcmp(keyptr, v.val.string.val, keylen) == 0))
+        {
+            if (r == WJB_KEY)
+            {
+                /* skip corresponding value */
+                JsonbIteratorNext(&it, &v, true);
+            }
+
+            continue;
+        }
+
+        res = pushJsonbValue(&state, r, &v);
+    }
+
+    if (res == NULL || (res->type == jbvArray && res->val.array.nElems == 0) ||
+                       (res->type == jbvObject && res->val.object.nPairs == 0) )
+    {
+        SET_VARSIZE(out, VARHDRSZ);
+    }
+    else
+    {
         out = JsonbValueToJsonb(res);
     }
 

@@ -17,3 +17,14 @@ CREATE OPERATOR || (
 	RIGHTARG = jsonb,
 	PROCEDURE = jsonb_concat
 );
+
+CREATE FUNCTION jsonb_delete(jsonb,text)
+RETURNS jsonb
+AS 'MODULE_PATHNAME','jsonb_delete'
+LANGUAGE C STRICT;
+
+CREATE OPERATOR - (
+	LEFTARG = jsonb,
+	RIGHTARG = text,
+	PROCEDURE = jsonb_delete
+);
