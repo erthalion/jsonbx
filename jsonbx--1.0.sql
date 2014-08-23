@@ -28,3 +28,14 @@ CREATE OPERATOR - (
 	RIGHTARG = text,
 	PROCEDURE = jsonb_delete
 );
+
+CREATE FUNCTION jsonb_delete(jsonb,int)
+RETURNS jsonb
+AS 'MODULE_PATHNAME','jsonb_delete_idx'
+LANGUAGE C STRICT;
+
+CREATE OPERATOR - (
+	LEFTARG = jsonb,
+	RIGHTARG = int,
+	PROCEDURE = jsonb_delete
+);

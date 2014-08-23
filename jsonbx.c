@@ -20,6 +20,9 @@ Datum jsonb_concat(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_delete);
 Datum jsonb_delete(PG_FUNCTION_ARGS);
 
+PG_FUNCTION_INFO_V1(jsonb_delete_idx);
+Datum jsonb_delete_idx(PG_FUNCTION_ARGS);
+
 char * JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, JsonbOutputKind kind);
 static void printCR(StringInfo out, JsonbOutputKind kind);
 static void printIndent(StringInfo out, JsonbOutputKind kind, int level);
@@ -133,6 +136,76 @@ jsonb_delete(PG_FUNCTION_ARGS)
             }
 
             continue;
+        }
+
+        res = pushJsonbValue(&state, r, &v);
+    }
+
+    if (res == NULL || (res->type == jbvArray && res->val.array.nElems == 0) ||
+                       (res->type == jbvObject && res->val.object.nPairs == 0) )
+    {
+        SET_VARSIZE(out, VARHDRSZ);
+    }
+    else
+    {
+        out = JsonbValueToJsonb(res);
+    }
+
+    PG_RETURN_POINTER(out);
+}
+
+
+Datum
+jsonb_delete_idx(PG_FUNCTION_ARGS)
+{
+    Jsonb            *in = PG_GETARG_JSONB(0);
+    int               idx = PG_GETARG_INT32(1);
+    Jsonb            *out = palloc(VARSIZE(in));
+    JsonbParseState  *state = NULL;
+    JsonbIterator    *it;
+    uint32            r, i = 0, n;
+    JsonbValue        v, *res = NULL;
+
+    if (JB_ROOT_COUNT(in) == 0)
+    {
+        memcpy(out, in, VARSIZE(in));
+        PG_RETURN_POINTER(out);
+    }
+
+    it = JsonbIteratorInit(&in->root);
+
+    r = JsonbIteratorNext(&it, &v, false);
+    if (r == WJB_BEGIN_ARRAY)
+        n = v.val.array.nElems;
+    else
+        n = v.val.object.nPairs;
+
+    if (idx < 0)
+    {
+        if (-idx > n)
+            idx = n;
+        else
+            idx = n + idx;
+    }
+
+    if (idx >= n)
+    {
+        memcpy(out, in, VARSIZE(in));
+        PG_RETURN_POINTER(out);
+    }
+
+    pushJsonbValue(&state, r, &v);
+
+    while((r = JsonbIteratorNext(&it, &v, true)) != 0)
+    {
+        if (r == WJB_ELEM || r == WJB_KEY)
+        {
+            if (i++ == idx)
+            {
+                if (r == WJB_KEY)
+                    JsonbIteratorNext(&it, &v, true); /* skip value */
+                continue;
+            }
         }
 
         res = pushJsonbValue(&state, r, &v);

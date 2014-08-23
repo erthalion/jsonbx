@@ -25,3 +25,21 @@ select '{"a":1 , "b":2, "c":3}'::jsonb - 'b'::text;
 select '{"a":1 , "b":2, "c":3}'::jsonb - 'c'::text;
 select '{"a":1 , "b":2, "c":3}'::jsonb - 'd'::text;
 select pg_column_size('{"a":1 , "b":2, "c":3}'::jsonb - 'b'::text) = pg_column_size('{"a":1, "b":2}'::jsonb);
+
+select '["a","b","c"]'::jsonb - 3;
+select '["a","b","c"]'::jsonb - 2;
+select '["a","b","c"]'::jsonb - 1;
+select '["a","b","c"]'::jsonb - 0;
+select '["a","b","c"]'::jsonb - -1;
+select '["a","b","c"]'::jsonb - -2;
+select '["a","b","c"]'::jsonb - -3;
+select '["a","b","c"]'::jsonb - -4;
+
+select '{"a":1, "b":2, "c":3}'::jsonb - 3;
+select '{"a":1, "b":2, "c":3}'::jsonb - 2;
+select '{"a":1, "b":2, "c":3}'::jsonb - 1;
+select '{"a":1, "b":2, "c":3}'::jsonb - 0;
+select '{"a":1, "b":2, "c":3}'::jsonb - -1;
+select '{"a":1, "b":2, "c":3}'::jsonb - -2;
+select '{"a":1, "b":2, "c":3}'::jsonb - -3;
+select '{"a":1, "b":2, "c":3}'::jsonb - -4;

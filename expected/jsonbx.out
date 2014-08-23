@@ -149,3 +149,99 @@ select pg_column_size('{"a":1 , "b":2, "c":3}'::jsonb - 'b'::text) = pg_column_s
  t
 (1 row)
 
+select '["a","b","c"]'::jsonb - 3;
+    ?column?     
+-----------------
+ ["a", "b", "c"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - 2;
+  ?column?  
+------------
+ ["a", "b"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - 1;
+  ?column?  
+------------
+ ["a", "c"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - 0;
+  ?column?  
+------------
+ ["b", "c"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - -1;
+  ?column?  
+------------
+ ["a", "b"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - -2;
+  ?column?  
+------------
+ ["a", "c"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - -3;
+  ?column?  
+------------
+ ["b", "c"]
+(1 row)
+
+select '["a","b","c"]'::jsonb - -4;
+    ?column?     
+-----------------
+ ["a", "b", "c"]
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - 3;
+         ?column?         
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - 2;
+     ?column?     
+------------------
+ {"a": 1, "b": 2}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - 1;
+     ?column?     
+------------------
+ {"a": 1, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - 0;
+     ?column?     
+------------------
+ {"b": 2, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - -1;
+     ?column?     
+------------------
+ {"a": 1, "b": 2}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - -2;
+     ?column?     
+------------------
+ {"a": 1, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - -3;
+     ?column?     
+------------------
+ {"b": 2, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - -4;
+         ?column?         
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
