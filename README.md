@@ -9,9 +9,11 @@ List of the implemented functions
 * jsonb_print
 * jsonb_concat
 * jsonb_delete(jsonb, text)
+* jsonb_delete_idx(jsonb, int)
 
 List of the implemented operators
 ---------------------------------
 
 * concatenation operator (||)
 * delete key operator (jsonb - text)
+* delete key by index operator (jsonb - int)
