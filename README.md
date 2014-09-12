@@ -10,6 +10,7 @@ List of the implemented functions
 * jsonb_concat
 * jsonb_delete(jsonb, text)
 * jsonb_delete_idx(jsonb, int)
+* jsonb_replace(jsonb, text[], jsonb)
 
 List of the implemented operators
 ---------------------------------
