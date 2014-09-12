@@ -2,6 +2,7 @@
 
 #include "fmgr.h"
 #include "catalog/pg_collation.h"
+#include "catalog/pg_type.h"
 #include "utils/builtins.h"
 #include "utils/json.h"
 #include "utils/jsonb.h"
@@ -23,10 +24,17 @@ Datum jsonb_delete(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_delete_idx);
 Datum jsonb_delete_idx(PG_FUNCTION_ARGS);
 
+PG_FUNCTION_INFO_V1(jsonb_replace);
+Datum jsonb_replace(PG_FUNCTION_ARGS);
+
 char * JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, JsonbOutputKind kind);
 static void printCR(StringInfo out, JsonbOutputKind kind);
 static void printIndent(StringInfo out, JsonbOutputKind kind, int level);
 static void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
+static JsonbValue* replacePath(JsonbIterator **it, Datum *path_elems, bool *path_nulls, int path_len,
+        JsonbParseState  **st, int level, JsonbValue *newval);
+static bool h_atoi(char *c, int l, int *acc);
+static void fillJsonbValue(JEntry *children, int index, char *base_addr, JsonbValue *result);
 
 static JsonbValue * IteratorConcat(JsonbIterator **it1, JsonbIterator **it2, JsonbParseState **state);
 
@@ -224,6 +232,74 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
     PG_RETURN_POINTER(out);
 }
 
+Datum
+jsonb_replace(PG_FUNCTION_ARGS)
+{
+    Jsonb              *in = PG_GETARG_JSONB(0);
+    ArrayType          *path = PG_GETARG_ARRAYTYPE_P(1);
+    Jsonb              *newval = PG_GETARG_JSONB(2);
+    Jsonb              *out = palloc(VARSIZE(in) + VARSIZE(newval));
+    JsonbValue         *res = NULL;
+    JsonbValue          value;
+    Datum              *path_elems;
+    bool               *path_nulls;
+    int                 path_len;
+    JsonbIterator      *it;
+    JsonbParseState    *st = NULL;
+
+    Assert(ARR_ELEMTYPE(path) == TEXTOID);
+
+    if (ARR_NDIM(path) > 1)
+        ereport(ERROR,
+                (errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
+                 errmsg("wrong number of array subscripts")));
+
+    if (JB_ROOT_COUNT(in) == 0)
+    {
+        memcpy(out, in, VARSIZE(in));
+        PG_RETURN_POINTER(out);
+    }
+
+    deconstruct_array(path, TEXTOID, -1, false, 'i',
+                      &path_elems, &path_nulls, &path_len);
+
+    if (path_len == 0)
+    {
+        memcpy(out, in, VARSIZE(in));
+        PG_RETURN_POINTER(out);
+    }
+
+    if (JB_ROOT_COUNT(newval) == 0)
+    {
+        value.type = jbvNull;
+    }
+    else
+    {
+        uint32 r;
+        it = JsonbIteratorInit(&newval->root);
+        while((r = JsonbIteratorNext(&it, &value, false)) != 0)
+        {
+            res = pushJsonbValue(&st, r, &value);
+        }
+        
+        value = *res;
+    }
+
+    it = JsonbIteratorInit(&in->root);
+
+    res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, &value);
+
+    if (res == NULL)
+    {
+        SET_VARSIZE(out, VARHDRSZ);
+    }
+    else
+    {
+        out = JsonbValueToJsonb(res);
+    }
+
+    PG_RETURN_POINTER(out);
+}
 
 /*
  * JsonbToCStringExtended
@@ -523,4 +599,262 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
     }
 
     return res;
+}
+
+
+static JsonbValue*
+replacePath(JsonbIterator **it, Datum *path_elems,
+			  bool *path_nulls, int path_len,
+			  JsonbParseState  **st, int level, JsonbValue *newval)
+{
+	JsonbValue v, *res = NULL;
+	int			r;
+
+	r = JsonbIteratorNext(it, &v, false);
+
+    // TODO: There is an issue with replacing in array
+    // =# SELECT jsonb_replace('{"a":[1, 2]}'::jsonb, '{a, -1}', '"value"');
+    //    jsonb_replace    
+    // -----------------------
+    //    {"a": [1, "value"}
+    //    (1 row)
+    //
+	if (r == WJB_BEGIN_ARRAY)
+	{
+		int		idx, i;
+		uint32	n = v.val.array.nElems;
+
+		idx = n;
+		if (level >= path_len || path_nulls[level] ||
+			h_atoi(VARDATA_ANY(path_elems[level]),
+				   VARSIZE_ANY_EXHDR(path_elems[level]), &idx) == false)
+		{
+			idx = n;
+		}
+		else if (idx < 0)
+		{
+			if (-idx > n)
+				idx = n;
+			else
+				idx = n + idx;
+		}
+
+		if (idx > n)
+			idx = n;
+
+		pushJsonbValue(st, r, &v);
+
+		for(i=0; i<n; i++)
+		{
+			if (i == idx && level < path_len)
+			{
+				if (level == path_len - 1)
+				{
+					r = JsonbIteratorNext(it, &v, true); /* skip */
+					Assert(r == WJB_ELEM);
+                    res = pushJsonbValue(st, r, newval);
+				}
+				else
+				{
+					res = replacePath(it, path_elems, path_nulls, path_len,
+										st, level + 1, newval);
+				}
+			}
+			else
+			{
+				r = JsonbIteratorNext(it, &v, false);
+				Assert(r == WJB_ELEM);
+				res = pushJsonbValue(st, r, &v);
+
+                if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+                {
+                    int walking_level = 1;
+                    while(walking_level != 0)
+                    {
+                        r = JsonbIteratorNext(it, &v, false);
+                        if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+                        {
+                            ++walking_level;
+                        }
+                        if (r == WJB_END_ARRAY || r == WJB_END_OBJECT)
+                        {
+                            --walking_level;
+                        }
+                        res = pushJsonbValue(st, r, &v);
+                    }
+                }
+
+			}
+		}
+
+		r = JsonbIteratorNext(it, &v, false);
+		Assert(r == WJB_END_ARRAY);
+		res = pushJsonbValue(st, r, &v);
+	}
+	else if (r == WJB_BEGIN_OBJECT)
+	{
+		int			i;
+		uint32		n = v.val.object.nPairs;
+		JsonbValue	k;
+		bool		done = false;
+
+		pushJsonbValue(st, WJB_BEGIN_OBJECT, &v);
+
+		if (level >= path_len || path_nulls[level])
+			done = true;
+
+		for(i=0; i<n; i++)
+		{
+			r = JsonbIteratorNext(it, &k, true);
+			Assert(r == WJB_KEY);
+			res = pushJsonbValue(st, r, &k);
+
+			if (done == false &&
+				k.val.string.len == VARSIZE_ANY_EXHDR(path_elems[level]) &&
+				memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
+					   k.val.string.len) == 0)
+			{
+				if (level == path_len - 1)
+				{
+					r = JsonbIteratorNext(it, &v, true); /* skip */
+					Assert(r == WJB_VALUE);
+                    res = pushJsonbValue(st, r, newval);
+				}
+				else
+				{
+					res = replacePath(it, path_elems, path_nulls, path_len,
+										st, level + 1, newval);
+				}
+			}
+			else
+			{
+				r = JsonbIteratorNext(it, &v, false);
+				Assert(r == WJB_VALUE);
+                res = pushJsonbValue(st, r, &v);
+                if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+                {
+                    int walking_level = 1;
+                    while(walking_level != 0)
+                    {
+                        r = JsonbIteratorNext(it, &v, false);
+                        if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+                        {
+                            ++walking_level;
+                        }
+                        if (r == WJB_END_ARRAY || r == WJB_END_OBJECT)
+                        {
+                            --walking_level;
+                        }
+                        res = pushJsonbValue(st, r, &v);
+                    }
+                }
+			}
+		}
+
+		r = JsonbIteratorNext(it, &v, true);
+		Assert(r == WJB_END_OBJECT);
+		res = pushJsonbValue(st, r, &v);
+	}
+	else if (r == WJB_ELEM || r == WJB_VALUE)
+	{
+		pushJsonbValue(st, r, &v);
+		res = (void*)0x01; /* dummy value */
+	}
+	else
+	{
+		elog(PANIC, "impossible state");
+	}
+
+	return res;
+}
+
+static bool
+h_atoi(char *c, int l, int *acc)
+{
+	bool	negative = false;
+	char 	*p = c;
+
+	*acc = 0;
+
+	while(isspace(*p) && p - c < l)
+		p++;
+
+	if (p - c >= l)
+		return false;
+
+	if (*p == '-')
+	{
+		negative = true;
+		p++;
+	}
+	else if (*p == '+')
+	{
+		p++;
+	}
+
+	if (p - c >= l)
+		return false;
+
+
+	while(p - c < l)
+	{
+		if (!isdigit(*p))
+			return false;
+
+		*acc *= 10;
+		*acc += (*p - '0');
+		p++;
+	}
+
+	if (negative)
+		*acc = - *acc;
+
+	return true;
+}
+
+/*
+ * A helper function to fill in a JsonbValue to represent an element of an
+ * array, or a key or value of an object.
+ *
+ * A nested array or object will be returned as jbvBinary, ie. it won't be
+ * expanded.
+ */
+static void
+fillJsonbValue(JEntry *children, int index, char *base_addr, JsonbValue *result)
+{
+	JEntry		entry = children[index];
+
+	if (JBE_ISNULL(entry))
+	{
+		result->type = jbvNull;
+	}
+	else if (JBE_ISSTRING(entry))
+	{
+		result->type = jbvString;
+		result->val.string.val = base_addr + JBE_OFF(children, index);
+		result->val.string.len = JBE_LEN(children, index);
+		Assert(result->val.string.len >= 0);
+	}
+	else if (JBE_ISNUMERIC(entry))
+	{
+		result->type = jbvNumeric;
+		result->val.numeric = (Numeric) (base_addr + INTALIGN(JBE_OFF(children, index)));
+	}
+	else if (JBE_ISBOOL_TRUE(entry))
+	{
+		result->type = jbvBool;
+		result->val.boolean = true;
+	}
+	else if (JBE_ISBOOL_FALSE(entry))
+	{
+		result->type = jbvBool;
+		result->val.boolean = false;
+	}
+	else
+	{
+		Assert(JBE_ISCONTAINER(entry));
+		result->type = jbvBinary;
+		result->val.binary.data = (JsonbContainer *) (base_addr + INTALIGN(JBE_OFF(children, index)));
+		result->val.binary.len = JBE_LEN(children, index) - (INTALIGN(JBE_OFF(children, index)) - JBE_OFF(children, index));
+	}
 }
