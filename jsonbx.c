@@ -34,7 +34,6 @@ static void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
 static JsonbValue* replacePath(JsonbIterator **it, Datum *path_elems, bool *path_nulls, int path_len,
         JsonbParseState  **st, int level, JsonbValue *newval);
 static bool h_atoi(char *c, int l, int *acc);
-static void fillJsonbValue(JEntry *children, int index, char *base_addr, JsonbValue *result);
 
 static JsonbValue * IteratorConcat(JsonbIterator **it1, JsonbIterator **it2, JsonbParseState **state);
 
@@ -810,51 +809,4 @@ h_atoi(char *c, int l, int *acc)
 		*acc = - *acc;
 
 	return true;
-}
-
-/*
- * A helper function to fill in a JsonbValue to represent an element of an
- * array, or a key or value of an object.
- *
- * A nested array or object will be returned as jbvBinary, ie. it won't be
- * expanded.
- */
-static void
-fillJsonbValue(JEntry *children, int index, char *base_addr, JsonbValue *result)
-{
-	JEntry		entry = children[index];
-
-	if (JBE_ISNULL(entry))
-	{
-		result->type = jbvNull;
-	}
-	else if (JBE_ISSTRING(entry))
-	{
-		result->type = jbvString;
-		result->val.string.val = base_addr + JBE_OFF(children, index);
-		result->val.string.len = JBE_LEN(children, index);
-		Assert(result->val.string.len >= 0);
-	}
-	else if (JBE_ISNUMERIC(entry))
-	{
-		result->type = jbvNumeric;
-		result->val.numeric = (Numeric) (base_addr + INTALIGN(JBE_OFF(children, index)));
-	}
-	else if (JBE_ISBOOL_TRUE(entry))
-	{
-		result->type = jbvBool;
-		result->val.boolean = true;
-	}
-	else if (JBE_ISBOOL_FALSE(entry))
-	{
-		result->type = jbvBool;
-		result->val.boolean = false;
-	}
-	else
-	{
-		Assert(JBE_ISCONTAINER(entry));
-		result->type = jbvBinary;
-		result->val.binary.data = (JsonbContainer *) (base_addr + INTALIGN(JBE_OFF(children, index)));
-		result->val.binary.len = JBE_LEN(children, index) - (INTALIGN(JBE_OFF(children, index)) - JBE_OFF(children, index));
-	}
 }
