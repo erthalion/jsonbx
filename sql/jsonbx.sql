@@ -53,3 +53,13 @@ select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '{"1": 2}');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{d,1,0}', '{"1": 2}');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{d,NULL,0}', '{"1": 2}');
+
+-- we can't use simple text for the last parameter like this:
+--
+-- =# select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '"test"');
+--
+-- because it would be interpreted as an array and this lead to
+--
+-- {"a": 1, "b": [1, "test", "c": {"1": 2}, "d": {"1": [2, 3]}, "n": null}
+
+select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '{"f": "test"}');

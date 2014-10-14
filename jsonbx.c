@@ -611,13 +611,6 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 
 	r = JsonbIteratorNext(it, &v, false);
 
-    // TODO: There is an issue with replacing in array
-    // =# SELECT jsonb_replace('{"a":[1, 2]}'::jsonb, '{a, -1}', '"value"');
-    //    jsonb_replace    
-    // -----------------------
-    //    {"a": [1, "value"}
-    //    (1 row)
-    //
 	if (r == WJB_BEGIN_ARRAY)
 	{
 		int		idx, i;
