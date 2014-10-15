@@ -53,6 +53,24 @@ select '{"aa":1 , "b":2, "cq":3}'::jsonb || '{}';
  {"b": 2, "aa": 1, "cq": 3}
 (1 row)
 
+select '["a", "b"]'::jsonb || '["c"]';
+    ?column?     
+-----------------
+ ["a", "b", "c"]
+(1 row)
+
+select '["a", "b"]'::jsonb || '"c"';
+    ?column?     
+-----------------
+ ["a", "b", "c"]
+(1 row)
+
+select '"a"'::jsonb || '{"a":1}';
+ERROR:  invalid concatnation of jsonb objects
+select '["a"]'::jsonb || '{"a":1}';
+ERROR:  invalid concatnation of jsonb objects
+select '{"a": 1}'::jsonb || '["b"]';
+ERROR:  invalid concatnation of jsonb objects
 select '{}'::jsonb || '{"cq":"l", "b":"g", "fg":false}';
               ?column?              
 ------------------------------------

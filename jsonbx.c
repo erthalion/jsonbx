@@ -537,10 +537,9 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
         }
     }
     /*
-     * One of the elements is array.
+     * Both elements are arrays.
      */
-    else if ((rk1 == WJB_BEGIN_OBJECT || rk1 == WJB_BEGIN_ARRAY) &&
-             (rk2 == WJB_BEGIN_OBJECT || rk2 == WJB_BEGIN_ARRAY))
+    else if (rk1 == WJB_BEGIN_ARRAY && rk2 == WJB_BEGIN_ARRAY)
     {
         res = pushJsonbValue(state, r1, &v1);
         for(;;)
@@ -573,24 +572,6 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
         res = pushJsonbValue(state,
                               (rk1 == WJB_BEGIN_OBJECT) ? WJB_END_OBJECT : WJB_END_ARRAY,
                               NULL/* signal to sort */);
-    }
-    /*
-     * Concat the value or element with the array.
-     */
-    else if ((rk1 & (WJB_VALUE | WJB_ELEM)) != 0)
-    {
-        if (v2.type == jbvArray && v2.val.array.rawScalar)
-        {
-            Assert(v2.val.array.nElems == 1);
-            r2 = JsonbIteratorNext(it2, &v2, false);
-            pushJsonbValue(state, r1, &v2);
-        }
-        else
-        {
-            res = pushJsonbValue(state, r2, &v2);
-            while((r2 = JsonbIteratorNext(it2, &v2, true)) != 0)
-                res = pushJsonbValue(state, r2, &v2);
-        }
     }
     else
     {
