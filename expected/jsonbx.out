@@ -59,18 +59,46 @@ select '["a", "b"]'::jsonb || '["c"]';
  ["a", "b", "c"]
 (1 row)
 
+select '["a", "b"]'::jsonb || '["c", "d"]';
+       ?column?       
+----------------------
+ ["a", "b", "c", "d"]
+(1 row)
+
+select '["c"]' || '["a", "b"]'::jsonb;
+    ?column?     
+-----------------
+ ["c", "a", "b"]
+(1 row)
+
 select '["a", "b"]'::jsonb || '"c"';
     ?column?     
 -----------------
  ["a", "b", "c"]
 (1 row)
 
+select '"c"' || '["a", "b"]'::jsonb;
+    ?column?     
+-----------------
+ ["c", "a", "b"]
+(1 row)
+
 select '"a"'::jsonb || '{"a":1}';
 ERROR:  invalid concatnation of jsonb objects
-select '["a"]'::jsonb || '{"a":1}';
+select '{"a":1}' || '"a"'::jsonb;
 ERROR:  invalid concatnation of jsonb objects
-select '{"a": 1}'::jsonb || '["b"]';
-ERROR:  invalid concatnation of jsonb objects
+select '["a", "b"]'::jsonb || '{"c":1}';
+       ?column?       
+----------------------
+ ["a", "b", {"c": 1}]
+(1 row)
+
+select '{"c": 1}'::jsonb || '["a", "b"]';
+       ?column?       
+----------------------
+ [{"c": 1}, "a", "b"]
+(1 row)
+
 select '{}'::jsonb || '{"cq":"l", "b":"g", "fg":false}';
               ?column?              
 ------------------------------------

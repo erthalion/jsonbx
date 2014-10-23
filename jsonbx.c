@@ -36,6 +36,8 @@ static JsonbValue* replacePath(JsonbIterator **it, Datum *path_elems, bool *path
 static bool h_atoi(char *c, int l, int *acc);
 
 static JsonbValue * IteratorConcat(JsonbIterator **it1, JsonbIterator **it2, JsonbParseState **state);
+static JsonbValue* walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition);
+static bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level);
 
 Datum
 jsonb_print(PG_FUNCTION_ARGS)
@@ -573,6 +575,35 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
                               (rk1 == WJB_BEGIN_OBJECT) ? WJB_END_OBJECT : WJB_END_ARRAY,
                               NULL/* signal to sort */);
     }
+    else if ((is_array(rk1, it1) && rk2 == WJB_BEGIN_OBJECT) ||
+            (rk1 == WJB_BEGIN_OBJECT && is_array(rk2, it2)))
+    {
+        JsonbIterator** it_array = choice_array(rk1, it1, it2);
+        JsonbIterator** it_object = choice_object(rk1, it1, it2);
+
+        JsonbValue* v_array = choice_array(rk1, &v1, &v2);
+        JsonbValue* v_object = choice_object(rk1, &v1, &v2);
+
+        bool prepend = (rk1 == WJB_BEGIN_OBJECT) ? true : false;
+
+        pushJsonbValue(state, WJB_BEGIN_ARRAY, v_array);
+        if (prepend)
+        {
+            pushJsonbValue(state, WJB_BEGIN_OBJECT, v_object);
+            walkJsonb(it_object, v_object, state, NULL); 
+
+            res = walkJsonb(it_array, v_array, state, NULL);
+        }
+        else
+        {
+            walkJsonb(it_array, v_array, state, untilLast);
+
+            pushJsonbValue(state, WJB_BEGIN_OBJECT, v_object);
+            walkJsonb(it_object, v_object, state, NULL); 
+
+            res = pushJsonbValue(state, WJB_END_ARRAY, v_array);
+        }
+    }
     else
     {
         elog(ERROR, "invalid concatnation of jsonb objects");
@@ -581,6 +612,35 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
     return res;
 }
 
+static bool
+untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level)
+{
+    return level == 0;
+}
+
+static JsonbValue*
+walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition until_condition)
+{
+    uint32          r, level = 1;
+    JsonbValue      *res = NULL;
+
+    while((r = JsonbIteratorNext(it, v, false)) != 0)
+    {
+        if (r == WJB_BEGIN_OBJECT || r == WJB_BEGIN_ARRAY) {
+            ++level;
+        }
+        else if (r == WJB_END_OBJECT || r == WJB_END_ARRAY) {
+            --level;
+        }
+
+        if(until_condition != NULL && until_condition(state, v, r, level))
+            break;
+
+        res = pushJsonbValue(state, r, v);
+    }
+
+    return res;
+}
 
 static JsonbValue*
 replacePath(JsonbIterator **it, Datum *path_elems,
