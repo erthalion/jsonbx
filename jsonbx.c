@@ -276,14 +276,22 @@ jsonb_replace(PG_FUNCTION_ARGS)
     }
     else
     {
-        uint32 r;
+        uint32 r, is_scalar = false;
         it = JsonbIteratorInit(&newval->root);
+        is_scalar = it->isScalar;
         while((r = JsonbIteratorNext(&it, &value, false)) != 0)
         {
             res = pushJsonbValue(&st, r, &value);
         }
         
-        value = *res;
+        if (is_scalar && res->type == jbvArray)
+        {
+            value = res->val.array.elems[0];
+        }
+        else
+        {
+            value = *res;
+        }
     }
 
     it = JsonbIteratorInit(&in->root);
