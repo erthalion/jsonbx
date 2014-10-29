@@ -348,60 +348,60 @@ walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condi
 
 JsonbValue*
 replacePath(JsonbIterator **it, Datum *path_elems,
-			  bool *path_nulls, int path_len,
-			  JsonbParseState  **st, int level, JsonbValue *newval)
+              bool *path_nulls, int path_len,
+              JsonbParseState  **st, int level, JsonbValue *newval)
 {
-	JsonbValue v, *res = NULL;
-	int			r;
+    JsonbValue v, *res = NULL;
+    int        r;
 
-	r = JsonbIteratorNext(it, &v, false);
+    r = JsonbIteratorNext(it, &v, false);
 
-	if (r == WJB_BEGIN_ARRAY)
-	{
-		int		idx, i;
-		uint32	n = v.val.array.nElems;
+    if (r == WJB_BEGIN_ARRAY)
+    {
+        int        idx, i;
+        uint32    n = v.val.array.nElems;
 
-		idx = n;
-		if (level >= path_len || path_nulls[level] ||
-			h_atoi(VARDATA_ANY(path_elems[level]),
-				   VARSIZE_ANY_EXHDR(path_elems[level]), &idx) == false)
-		{
-			idx = n;
-		}
-		else if (idx < 0)
-		{
-			if (-idx > n)
-				idx = n;
-			else
-				idx = n + idx;
-		}
+        idx = n;
+        if (level >= path_len || path_nulls[level] ||
+            h_atoi(VARDATA_ANY(path_elems[level]),
+                   VARSIZE_ANY_EXHDR(path_elems[level]), &idx) == false)
+        {
+            idx = n;
+        }
+        else if (idx < 0)
+        {
+            if (-idx > n)
+                idx = n;
+            else
+                idx = n + idx;
+        }
 
-		if (idx > n)
-			idx = n;
+        if (idx > n)
+            idx = n;
 
-		pushJsonbValue(st, r, &v);
+        pushJsonbValue(st, r, &v);
 
-		for(i=0; i<n; i++)
-		{
-			if (i == idx && level < path_len)
-			{
-				if (level == path_len - 1)
-				{
-					r = JsonbIteratorNext(it, &v, true); /* skip */
-					Assert(r == WJB_ELEM);
+        for(i=0; i<n; i++)
+        {
+            if (i == idx && level < path_len)
+            {
+                if (level == path_len - 1)
+                {
+                    r = JsonbIteratorNext(it, &v, true); /* skip */
+                    Assert(r == WJB_ELEM);
                     res = pushJsonbValue(st, r, newval);
-				}
-				else
-				{
-					res = replacePath(it, path_elems, path_nulls, path_len,
-										st, level + 1, newval);
-				}
-			}
-			else
-			{
-				r = JsonbIteratorNext(it, &v, false);
-				Assert(r == WJB_ELEM);
-				res = pushJsonbValue(st, r, &v);
+                }
+                else
+                {
+                    res = replacePath(it, path_elems, path_nulls, path_len,
+                                        st, level + 1, newval);
+                }
+            }
+            else
+            {
+                r = JsonbIteratorNext(it, &v, false);
+                Assert(r == WJB_ELEM);
+                res = pushJsonbValue(st, r, &v);
 
                 if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
                 {
@@ -421,52 +421,52 @@ replacePath(JsonbIterator **it, Datum *path_elems,
                     }
                 }
 
-			}
-		}
+            }
+        }
 
-		r = JsonbIteratorNext(it, &v, false);
-		Assert(r == WJB_END_ARRAY);
-		res = pushJsonbValue(st, r, &v);
-	}
-	else if (r == WJB_BEGIN_OBJECT)
-	{
-		int			i;
-		uint32		n = v.val.object.nPairs;
-		JsonbValue	k;
-		bool		done = false;
+        r = JsonbIteratorNext(it, &v, false);
+        Assert(r == WJB_END_ARRAY);
+        res = pushJsonbValue(st, r, &v);
+    }
+    else if (r == WJB_BEGIN_OBJECT)
+    {
+        int           i;
+        uint32        n = v.val.object.nPairs;
+        JsonbValue    k;
+        bool          done = false;
 
-		pushJsonbValue(st, WJB_BEGIN_OBJECT, &v);
+        pushJsonbValue(st, WJB_BEGIN_OBJECT, &v);
 
-		if (level >= path_len || path_nulls[level])
-			done = true;
+        if (level >= path_len || path_nulls[level])
+            done = true;
 
-		for(i=0; i<n; i++)
-		{
-			r = JsonbIteratorNext(it, &k, true);
-			Assert(r == WJB_KEY);
-			res = pushJsonbValue(st, r, &k);
+        for(i=0; i<n; i++)
+        {
+            r = JsonbIteratorNext(it, &k, true);
+            Assert(r == WJB_KEY);
+            res = pushJsonbValue(st, r, &k);
 
-			if (done == false &&
-				k.val.string.len == VARSIZE_ANY_EXHDR(path_elems[level]) &&
-				memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
-					   k.val.string.len) == 0)
-			{
-				if (level == path_len - 1)
-				{
-					r = JsonbIteratorNext(it, &v, true); /* skip */
-					Assert(r == WJB_VALUE);
+            if (done == false &&
+                k.val.string.len == VARSIZE_ANY_EXHDR(path_elems[level]) &&
+                memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
+                       k.val.string.len) == 0)
+            {
+                if (level == path_len - 1)
+                {
+                    r = JsonbIteratorNext(it, &v, true); /* skip */
+                    Assert(r == WJB_VALUE);
                     res = pushJsonbValue(st, r, newval);
-				}
-				else
-				{
-					res = replacePath(it, path_elems, path_nulls, path_len,
-										st, level + 1, newval);
-				}
-			}
-			else
-			{
-				r = JsonbIteratorNext(it, &v, false);
-				Assert(r == WJB_VALUE);
+                }
+                else
+                {
+                    res = replacePath(it, path_elems, path_nulls, path_len,
+                                        st, level + 1, newval);
+                }
+            }
+            else
+            {
+                r = JsonbIteratorNext(it, &v, false);
+                Assert(r == WJB_VALUE);
                 res = pushJsonbValue(st, r, &v);
                 if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
                 {
@@ -485,66 +485,66 @@ replacePath(JsonbIterator **it, Datum *path_elems,
                         res = pushJsonbValue(st, r, &v);
                     }
                 }
-			}
-		}
+            }
+        }
 
-		r = JsonbIteratorNext(it, &v, true);
-		Assert(r == WJB_END_OBJECT);
-		res = pushJsonbValue(st, r, &v);
-	}
-	else if (r == WJB_ELEM || r == WJB_VALUE)
-	{
-		pushJsonbValue(st, r, &v);
-		res = (void*)0x01; /* dummy value */
-	}
-	else
-	{
-		elog(PANIC, "impossible state");
-	}
+        r = JsonbIteratorNext(it, &v, true);
+        Assert(r == WJB_END_OBJECT);
+        res = pushJsonbValue(st, r, &v);
+    }
+    else if (r == WJB_ELEM || r == WJB_VALUE)
+    {
+        pushJsonbValue(st, r, &v);
+        res = (void*)0x01; /* dummy value */
+    }
+    else
+    {
+        elog(PANIC, "impossible state");
+    }
 
-	return res;
+    return res;
 }
 
 bool
 h_atoi(char *c, int l, int *acc)
 {
-	bool	negative = false;
-	char 	*p = c;
+    bool      negative = false;
+    char     *p = c;
 
-	*acc = 0;
+    *acc = 0;
 
-	while(isspace(*p) && p - c < l)
-		p++;
+    while(isspace(*p) && p - c < l)
+        p++;
 
-	if (p - c >= l)
-		return false;
+    if (p - c >= l)
+        return false;
 
-	if (*p == '-')
-	{
-		negative = true;
-		p++;
-	}
-	else if (*p == '+')
-	{
-		p++;
-	}
+    if (*p == '-')
+    {
+        negative = true;
+        p++;
+    }
+    else if (*p == '+')
+    {
+        p++;
+    }
 
-	if (p - c >= l)
-		return false;
+    if (p - c >= l)
+        return false;
 
 
-	while(p - c < l)
-	{
-		if (!isdigit(*p))
-			return false;
+    while(p - c < l)
+    {
+        if (!isdigit(*p))
+            return false;
 
-		*acc *= 10;
-		*acc += (*p - '0');
-		p++;
-	}
+        *acc *= 10;
+        *acc += (*p - '0');
+        p++;
+    }
 
-	if (negative)
-		*acc = - *acc;
+    if (negative)
+        *acc = - *acc;
 
-	return true;
+    return true;
 }
