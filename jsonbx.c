@@ -2,6 +2,11 @@
 
 #include "catalog/pg_type.h"
 #include "utils/jsonb.h"
+#include "fmgr.h"
+#include "access/htup_details.h"
+#include "utils/typcache.h"
+#include "catalog/pg_type.h"
+#include "utils/lsyscache.h"
 
 #include "jsonbx.h"
 
@@ -21,6 +26,12 @@ Datum jsonb_delete_idx(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(jsonb_replace);
 Datum jsonb_replace(PG_FUNCTION_ARGS);
+
+PG_FUNCTION_INFO_V1(jsonb_agg_transfn);
+Datum jsonb_agg_transfn(PG_FUNCTION_ARGS);
+
+PG_FUNCTION_INFO_V1(jsonb_agg_finalfn);
+Datum jsonb_agg_finalfn(PG_FUNCTION_ARGS);
 
 Datum
 jsonb_print(PG_FUNCTION_ARGS)
@@ -291,4 +302,122 @@ jsonb_replace(PG_FUNCTION_ARGS)
     }
 
     PG_RETURN_POINTER(out);
+}
+
+Datum
+jsonb_agg_transfn(PG_FUNCTION_ARGS)
+{
+    Oid                 val_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
+    MemoryContext       aggcontext, oldcontext;
+    JsonbParseState     *state = NULL;
+    Datum               val;
+    Oid                 outfuncoid;
+    JsonbValue          *res = NULL;
+
+    HeapTupleHeader     td;
+    Oid                 tupType;
+    int32               tupTypmod;
+    TupleDesc           tupdesc;
+    HeapTupleData       tmptup, *tuple;
+
+    if (val_type == InvalidOid)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("could not determine input data type")));
+
+    if (!AggCheckCallContext(fcinfo, &aggcontext))
+    {
+        /* cannot be called directly because of internal-type argument */
+        elog(ERROR, "json_agg_transfn called in non-aggregate context");
+    }
+
+    if (PG_ARGISNULL(0))
+    {
+        /*
+         * Make this StringInfo in a context where it will persist for the
+         * duration of the aggregate call.  MemoryContextSwitchTo is only
+         * needed the first time, as the StringInfo routines make sure they
+         * use the right context to enlarge the object if necessary.
+         */
+        oldcontext = MemoryContextSwitchTo(aggcontext);
+        pushJsonbValue(&state, WJB_BEGIN_ARRAY, NULL);
+        MemoryContextSwitchTo(oldcontext);
+    }
+    else
+    {
+        state = (JsonbParseState*) PG_GETARG_POINTER(0);
+    }
+
+    /* fast path for NULLs */
+    if (PG_ARGISNULL(1))
+    {
+        datum_to_jsonb((Datum) 0, true, state, jbvNull, InvalidOid, false);
+        PG_RETURN_POINTER(state);
+    }
+
+
+    val = PG_GETARG_DATUM(1);
+
+    if (type_is_rowtype(getBaseType(val_type)))
+    {
+        td = DatumGetHeapTupleHeader(val);
+        /*tupType = HeapTupleHeaderGetTypeId(td);*/
+        /*tupTypmod = HeapTupleHeaderGetTypMod(td);*/
+        /*tupdesc = lookup_rowtype_tupdesc(tupType, tupTypmod);*/
+
+        /*tmptup.t_len = HeapTupleHeaderGetDatumLength(td);*/
+        /*tmptup.t_data = td;*/
+        /*tuple = &tmptup;*/
+
+        // new dummy jbvObject
+        JsonbValue field_key;
+        JsonbValue field_value;
+
+        pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+        field_key.type = jbvString;
+        field_key.val.string.val = "test1";
+        field_key.val.string.len = strlen("test1");
+        res = pushJsonbValue(&state, WJB_KEY, &field_key);
+
+        field_value.type = jbvBool;
+        field_value.val.boolean = true;
+        pushJsonbValue(&state, WJB_VALUE, &field_value);
+
+        field_key.type = jbvString;
+        field_key.val.string.val = "test2";
+        field_key.val.string.len = strlen("test2");
+        res = pushJsonbValue(&state, WJB_KEY, &field_key);
+
+        field_value.type = jbvBool;
+        field_value.val.boolean = true;
+        pushJsonbValue(&state, WJB_VALUE, &field_value);
+
+        res = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+    }
+
+    /*
+     * The transition type for array_agg() is declared to be "internal", which
+     * is a pass-by-value type the same size as a pointer.  So we can safely
+     * pass the ArrayBuildState pointer through nodeAgg.c's machinations.
+     */
+    PG_RETURN_POINTER(state);
+}
+
+Datum
+jsonb_agg_finalfn(PG_FUNCTION_ARGS)
+{
+    JsonbParseState     *state;
+    JsonbValue          *res = NULL;
+
+    /* cannot be called directly because of internal-type argument */
+    Assert(AggCheckCallContext(fcinfo, NULL));
+
+    state = PG_ARGISNULL(0) ? NULL : (JsonbParseState*) PG_GETARG_POINTER(0);
+
+    if (state == NULL)
+        PG_RETURN_NULL();
+
+    res = pushJsonbValue(&state, WJB_END_ARRAY, NULL);
+    PG_RETURN_POINTER(JsonbValueToJsonb(res));
 }

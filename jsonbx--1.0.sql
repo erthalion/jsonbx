@@ -44,3 +44,20 @@ CREATE FUNCTION jsonb_replace(jsonb,text[],jsonb)
 RETURNS jsonb
 AS 'MODULE_PATHNAME','jsonb_replace'
 LANGUAGE C STRICT;
+
+
+CREATE FUNCTION jsonb_agg_transfn(internal, anyelement)
+RETURNS internal
+AS 'MODULE_PATHNAME','jsonb_agg_transfn'
+LANGUAGE C;
+
+CREATE FUNCTION jsonb_agg_finalfn(internal)
+RETURNS jsonb
+AS 'MODULE_PATHNAME','jsonb_agg_finalfn'
+LANGUAGE C STRICT;
+
+CREATE AGGREGATE jsonb_agg(anyelement) (
+    SFUNC = jsonb_agg_transfn,
+    STYPE = internal,
+    FINALFUNC = jsonb_agg_finalfn
+);
