@@ -351,7 +351,7 @@ jsonb_agg_transfn(PG_FUNCTION_ARGS)
     /* fast path for NULLs */
     if (PG_ARGISNULL(1))
     {
-        /*datum_to_jsonb((Datum) 0, true, state, jbvNull, InvalidOid, false);*/
+        datum_to_jsonb((Datum) 0, true, state, jbvNull, InvalidOid, false);
         PG_RETURN_POINTER(state);
     }
 
