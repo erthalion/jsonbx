@@ -275,24 +275,16 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		{
 			if (!(r2 == WJB_END_OBJECT || r2 == WJB_END_ARRAY))
 			{
-				if (rk1 == WJB_BEGIN_OBJECT)
-				{
-					pushJsonbValue(state, WJB_KEY, &v2);
-					r2 = JsonbIteratorNext(it2, &v2, true);
-					Assert(r2 == WJB_ELEM);
-					pushJsonbValue(state, WJB_VALUE, &v2);
-				}
-				else
-				{
-					pushJsonbValue(state, WJB_ELEM, &v2);
-				}
+				pushJsonbValue(state, WJB_ELEM, &v2);
 			}
 		}
 
-		res = pushJsonbValue(state,
-							  (rk1 == WJB_BEGIN_OBJECT) ? WJB_END_OBJECT : WJB_END_ARRAY,
+		res = pushJsonbValue(state, WJB_END_ARRAY,
 							  NULL/* signal to sort */);
 	}
+	/*
+	 *  TODO: comments are needed
+	 */
 	else if ((is_array(rk1, it1) && rk2 == WJB_BEGIN_OBJECT) ||
 			(rk1 == WJB_BEGIN_OBJECT && is_array(rk2, it2)))
 	{
@@ -330,6 +322,9 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 	return res;
 }
 
+/*
+ * TODO: are there another examples of stop conditions?
+ */
 bool
 untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level)
 {
