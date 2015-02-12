@@ -283,7 +283,13 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 							  NULL/* signal to sort */);
 	}
 	/*
-	 *  TODO: comments are needed
+	 *  One of the elements is object, another is array.
+	 *	There is only one reasonable approach to handle this - 
+	 *	include object into array as one of the elements.
+	 *	Position of this new element will depends on the arguments
+	 *	order:
+	 *	- if the first argument is object, then it will be the first element in array
+	 *	- if the second argument is object, then it will be the last element in array
 	 */
 	else if ((is_array(rk1, it1) && rk2 == WJB_BEGIN_OBJECT) ||
 			(rk1 == WJB_BEGIN_OBJECT && is_array(rk2, it2)))
