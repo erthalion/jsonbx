@@ -22,6 +22,12 @@ Datum jsonb_delete_idx(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_replace);
 Datum jsonb_replace(PG_FUNCTION_ARGS);
 
+/*
+ * jsonb_print:
+ * Allows jsonb displaying in two modes - regular and "prettified".
+ * Boolean flag "pretty_print" defines which mode will be used
+ * "prettified" (true) or regular (false).
+ */
 Datum
 jsonb_print(PG_FUNCTION_ARGS)
 {
@@ -43,6 +49,18 @@ jsonb_print(PG_FUNCTION_ARGS)
 }
 
 
+/*
+ * jsonb_concat:
+ * Concatenation of two jsonb. There are few allowed combinations:
+ * - concatenation of two objects
+ * - concatenation of two arrays
+ * - concatenation of object and array
+ *
+ * The result for first two is new object and array accordingly.
+ * The last one return new array, which contains all elements from
+ * original array, and one extra element (which is actually
+ * other argument of this function with type jbvObject) at the first or last position.
+ */
 Datum
 jsonb_concat(PG_FUNCTION_ARGS)
 {
@@ -90,6 +108,12 @@ jsonb_concat(PG_FUNCTION_ARGS)
 }
 
 
+/*
+ * jsonb_delete:
+ * Delete one key or element from jsonb by name.
+ * If there are many keys or elements with than name,
+ * the first one will be removed.
+ */
 Datum
 jsonb_delete(PG_FUNCTION_ARGS)
 {
@@ -148,6 +172,15 @@ jsonb_delete(PG_FUNCTION_ARGS)
 }
 
 
+/*
+ * jsonb_delete_idx:
+ * Delete key (only from the top level of object) or element from jsonb by index (idx).
+ * Negative idx value is supported, and it implies the countdown from the last key/element.
+ * If idx is more, than numbers of keys/elements, or equal - nothing will be deleted.
+ * If idx is negative and -idx is more, than number of keys/elements - the last one will be deleted.
+ *
+ * TODO: take care about nesting values.
+ */
 Datum
 jsonb_delete_idx(PG_FUNCTION_ARGS)
 {
@@ -217,6 +250,12 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(out);
 }
 
+/*
+ * jsonb_replace:
+ * Replace value of jsonb key or jsonb element, which can be found by the specified path.
+ * Path must be replesented as an array of key names or indexes. If indexes will be used,
+ * the same rules implied as for jsonb_delete_idx (negative indexing and edge cases)
+ */
 Datum
 jsonb_replace(PG_FUNCTION_ARGS)
 {
@@ -262,11 +301,20 @@ jsonb_replace(PG_FUNCTION_ARGS)
 		uint32 r, is_scalar = false;
 		it = JsonbIteratorInit(&newval->root);
 		is_scalar = it->isScalar;
+
+		/*
+		 * New value can have a complex type (object or array).
+		 * In that case we must unwrap this value to JsonbValue.
+		 */
 		while((r = JsonbIteratorNext(&it, &value, false)) != 0)
 		{
 			res = pushJsonbValue(&st, r, &value);
 		}
 		
+		/*
+		 * if new value is a scalar,
+		 * we must extract this scalar from jbvArray
+		 */
 		if (is_scalar && res->type == jbvArray)
 		{
 			value = res->val.array.elems[0];
