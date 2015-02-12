@@ -102,7 +102,7 @@ jsonb_delete(PG_FUNCTION_ARGS)
 	JsonbIterator 		*it;
 	uint32 				r;
 	JsonbValue 			v, *res = NULL;
-	bool 				skipNested = false;
+	bool 				skipped = false;
 
 	SET_VARSIZE(out, VARSIZE(in));
 
@@ -113,14 +113,15 @@ jsonb_delete(PG_FUNCTION_ARGS)
 
 	it = JsonbIteratorInit(&in->root);
 
-	while((r = JsonbIteratorNext(&it, &v, skipNested)) != 0)
+	while((r = JsonbIteratorNext(&it, &v, false)) != 0)
 	{
-		skipNested = true;
-
-		if ((r == WJB_ELEM || r == WJB_KEY) &&
+		if (!skipped && (r == WJB_ELEM || r == WJB_KEY) &&
 			(v.type == jbvString && keylen == v.val.string.len &&
 			 memcmp(keyptr, v.val.string.val, keylen) == 0))
 		{
+			/* we should delete only one key/element */
+			skipped = true;
+
 			if (r == WJB_KEY)
 			{
 				/* skip corresponding value */
