@@ -21,9 +21,11 @@ bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 leve
 
 
 /*
- * JsonbToCStringExtended
- *	   Converts jsonb value to a C-string.
+ * JsonbToCStringExtended:
+ * Convert jsonb value to a C-string taking into account "pretty_print" mode.
  * See the original function JsonbToCString in the jsonb.c
+ * Only one considerable change is printCR and printIndent functions,
+ * which add required line breaks and spaces accordingly to the nesting level.
  */
 char *
 JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bool pretty_print)
@@ -152,6 +154,11 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bo
 }
 
 
+/*
+ * printCR:
+ * Add required spaces (some kind of padding from right side)
+ * and line break from the right side, if "pretty_print" mode is active.
+ */
 void
 printCR(StringInfo out, bool pretty_print)
 {
@@ -162,6 +169,12 @@ printCR(StringInfo out, bool pretty_print)
 	}
 }
 
+
+/*
+ * printIndend:
+ * Add required spaces from the left side, accordingly to nesting level,
+ * if "pretty_print" mode is active.
+ */
 void
 printIndent(StringInfo out, bool pretty_print, int level)
 {
@@ -176,6 +189,10 @@ printIndent(StringInfo out, bool pretty_print, int level)
 }
 
 
+/*
+ * jsonb_put_escaped_value:
+ * Return string representation of jsonb value.
+ */
 void
 jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal)
 {
@@ -329,7 +346,8 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 }
 
 /*
- * TODO: are there another examples of stop conditions?
+ * One of possible conditions for walkJsonb.
+ * This condition implies, that entire Jsonb should be converted.
  */
 bool
 untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level)
@@ -337,6 +355,12 @@ untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level)
 	return level == 0;
 }
 
+
+/*
+ * walkJsonb:
+ * Convenient way to convert entire Jsonb or its part,
+ * depends on arbitrary conditons.
+ */
 JsonbValue*
 walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition until_condition)
 {
@@ -361,6 +385,15 @@ walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condi
 	return res;
 }
 
+/*
+ * replacePath:
+ * Recursive replacement function for jsonb_replace.
+ * Replace value of jsonb key or jsonb element, which can be found by the specified path on the specific level.
+ * For jbvArray level is the current element, for jbvObject is the current nesting level.
+ * For each recursion step, level value will be incremented, and an array element or object key will be replaces,
+ * if current level is path_len - 1 (it does mean, that we've reached the last element in the path).
+ * If indexes will be used, the same rules implied as for jsonb_delete_idx (negative indexing and edge cases)
+ */
 JsonbValue*
 replacePath(JsonbIterator **it, Datum *path_elems,
 			  bool *path_nulls, int path_len,
@@ -396,10 +429,17 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 
 		pushJsonbValue(st, r, &v);
 
+		/* iterate over array elements */
 		for(i=0; i<n; i++)
 		{
 			if (i == idx && level < path_len)
 			{
+				/*
+				 * The current path item was found.
+				 * If we reached the end of path, current element will be replaced
+				 * Otherwise level value will be incremented, and the next step of
+				 * recursion will be started.
+				 */
 				if (level == path_len - 1)
 				{
 					r = JsonbIteratorNext(it, &v, true); /* skip */
@@ -414,6 +454,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 			}
 			else
 			{
+				/* Replace was preformed, skip the rest of elements */
 				r = JsonbIteratorNext(it, &v, false);
 				Assert(r == WJB_ELEM);
 				res = pushJsonbValue(st, r, &v);
@@ -455,6 +496,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 		if (level >= path_len || path_nulls[level])
 			done = true;
 
+		/* iterate over object keys */
 		for(i=0; i<n; i++)
 		{
 			r = JsonbIteratorNext(it, &k, true);
@@ -466,6 +508,12 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 				memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
 					   k.val.string.len) == 0)
 			{
+				/*
+				 * The current path item was found.
+				 * If we reached the end of path, current element will be replaced
+				 * Otherwise level value will be incremented, and the next step of
+				 * recursion will be started.
+				 */
 				if (level == path_len - 1)
 				{
 					r = JsonbIteratorNext(it, &v, true); /* skip */
@@ -480,6 +528,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 			}
 			else
 			{
+				/* Replace was preformed, skip the rest of keys */
 				r = JsonbIteratorNext(it, &v, false);
 				Assert(r == WJB_VALUE);
 				res = pushJsonbValue(st, r, &v);
@@ -520,6 +569,11 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 	return res;
 }
 
+/*
+ * h_atoi:
+ * Verify, that first argument (path element), which presented by array index,
+ * pointed out the the element in path, and pass this element in acc.
+ */
 bool
 h_atoi(char *c, int l, int *acc)
 {
