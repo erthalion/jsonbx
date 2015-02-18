@@ -12,8 +12,7 @@
 #define is_array(flag_val, it) flag_val == WJB_BEGIN_ARRAY && !(*it)->isScalar
 
 typedef bool (*walk_condition)(JsonbParseState**, JsonbValue*, uint32 /* token */, uint32 /* level */);
-void printCR(StringInfo out, bool pretty_print);
-void printIndent(StringInfo out, bool pretty_print, int level);
+void add_indent(StringInfo out, bool indent, int level);
 void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
 bool h_atoi(char *c, int l, int *acc);
 JsonbValue* walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition);
@@ -28,7 +27,7 @@ bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 leve
  * which add required line breaks and spaces accordingly to the nesting level.
  */
 char *
-JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bool pretty_print)
+JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool indent)
 {
 	bool            first = true;
 	JsonbIterator   *it;
@@ -36,6 +35,14 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bo
 	JsonbValue      v;
 	int             level = 0;
 	bool            redo_switch = false;
+	/* If we are indenting, don't add a space after a comma */
+	int			ispaces = indent ? 1 : 2;
+	/*
+	 * Don't indent the very first item. This gets set to the indent flag
+	 * at the bottom of the loop.
+	 */
+	bool        use_indent = false;
+	bool        raw_scalar = false;
 
 	if (out == NULL)
 		out = makeStringInfo();
@@ -53,41 +60,37 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bo
 			case WJB_BEGIN_ARRAY:
 				if (!first)
 				{
-					appendBinaryStringInfo(out, ", ", 2);
+					appendBinaryStringInfo(out, ", ", ispaces);
 				}
 				first = true;
 
 				if (!v.val.array.rawScalar)
 				{
-					printCR(out, pretty_print);
-					printIndent(out, pretty_print, level);
-					appendStringInfoChar(out, '[');
+					add_indent(out, use_indent, level);
+					appendStringInfoCharMacro(out, '[');
+				}
+				else
+				{
+					raw_scalar = true;
 				}
 				level++;
-
-				printCR(out, pretty_print);
-				printIndent(out, pretty_print, level);
-
 				break;
 			case WJB_BEGIN_OBJECT:
 				if (!first)
-					appendBinaryStringInfo(out, ", ", 2);
+					appendBinaryStringInfo(out, ", ", ispaces);
 				first = true;
 
-				printCR(out, pretty_print);
-				printIndent(out, pretty_print, level);
-
+				add_indent(out, use_indent, level);
 				appendStringInfoCharMacro(out, '{');
 
 				level++;
 				break;
 			case WJB_KEY:
 				if (!first)
-					appendBinaryStringInfo(out, ", ", 2);
+					appendBinaryStringInfo(out, ", ", ispaces);
 				first = true;
 
-				printCR(out, pretty_print);
-				printIndent(out, pretty_print, level);
+				add_indent(out, use_indent, level);
 
 				/* json rules guarantee this is a string */
 				jsonb_put_escaped_value(out, &v);
@@ -114,38 +117,39 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bo
 			case WJB_ELEM:
 				if (!first)
 				{
-					appendBinaryStringInfo(out, ", ", 2);
-
-					printCR(out, pretty_print);
-					printIndent(out, pretty_print, level);
+					appendBinaryStringInfo(out, ", ", ispaces);
 				}
-				else
-					first = false;
+
+				first = false;
+
+				if (!raw_scalar)
+				{
+					add_indent(out, use_indent, level);
+				}
 
 				jsonb_put_escaped_value(out, &v);
 				break;
 			case WJB_END_ARRAY:
 				level--;
 
-				printCR(out, pretty_print);
-				printIndent(out, pretty_print, level);
-
-				if (!v.val.array.rawScalar)
+				if (!raw_scalar)
+				{
+					add_indent(out, use_indent, level);
 					appendStringInfoChar(out, ']');
+				}
 				first = false;
 				break;
 			case WJB_END_OBJECT:
 				level--;
 
-				printCR(out, pretty_print);
-				printIndent(out, pretty_print, level);
-
+				add_indent(out, use_indent, level);
 				appendStringInfoCharMacro(out, '}');
 				first = false;
 				break;
 			default:
 				elog(ERROR, "unknown flag of jsonb iterator");
 		}
+		use_indent = indent;
 	}
 
 	Assert(level == 0);
@@ -154,36 +158,17 @@ JsonbToCStringExtended(StringInfo out, JsonbContainer *in, int estimated_len, bo
 }
 
 
-/*
- * printCR:
- * Add required spaces (some kind of padding from right side)
- * and line break from the right side, if "pretty_print" mode is active.
- */
 void
-printCR(StringInfo out, bool pretty_print)
+add_indent(StringInfo out, bool indent, int level)
 {
-	if (pretty_print)
+	if (indent)
 	{
-		appendBinaryStringInfo(out, "    ", 4);
+		int			i;
+
 		appendStringInfoCharMacro(out, '\n');
-	}
-}
-
-
-/*
- * printIndend:
- * Add required spaces from the left side, accordingly to nesting level,
- * if "pretty_print" mode is active.
- */
-void
-printIndent(StringInfo out, bool pretty_print, int level)
-{
-	if (pretty_print)
-	{
-		int i;
-		for(i=0; i<4*level; i++)
+		for (i = 0; i < level; i++)
 		{
-			appendStringInfoCharMacro(out, ' ');
+			appendBinaryStringInfo(out, "    ", 4);
 		}
 	}
 }

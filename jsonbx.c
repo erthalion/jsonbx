@@ -2,13 +2,14 @@
 
 #include "catalog/pg_type.h"
 #include "utils/jsonb.h"
+#include "utils/builtins.h"
 
 #include "jsonbx.h"
 
 PG_MODULE_MAGIC;
 
-PG_FUNCTION_INFO_V1(jsonb_print);
-Datum jsonb_print(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(jsonb_indent);
+Datum jsonb_indent(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(jsonb_concat);
 Datum jsonb_concat(PG_FUNCTION_ARGS);
@@ -23,29 +24,18 @@ PG_FUNCTION_INFO_V1(jsonb_replace);
 Datum jsonb_replace(PG_FUNCTION_ARGS);
 
 /*
- * jsonb_print:
- * Allows jsonb displaying in two modes - regular and "prettified".
- * Boolean flag "pretty_print" defines which mode will be used
- * "prettified" (true) or regular (false).
+ * jsonb_indent:
+ * Pretty-printed text for the jsonb
  */
 Datum
-jsonb_print(PG_FUNCTION_ARGS)
+jsonb_indent(PG_FUNCTION_ARGS)
 {
-	Jsonb 			*jb = PG_GETARG_JSONB(0);
-	text 			*out;
-	int				pretty_print = 0;
-	StringInfo 		str = makeStringInfo();
+	Jsonb	   *jb = PG_GETARG_JSONB(0);
+	StringInfo	str = makeStringInfo();
 
-	if (PG_GETARG_BOOL(1))
-		pretty_print = 1;
+	JsonbToCStringWorker(str, &jb->root, VARSIZE(jb), true);
 
-	appendBinaryStringInfo(str, "	", 4); /* VARHDRSZ */
-	JsonbToCStringExtended(str, &jb->root, VARSIZE(jb), pretty_print);
-
-	out = (text*)str->data;
-	SET_VARSIZE(out, str->len);
-
-	PG_RETURN_TEXT_P(out);
+	PG_RETURN_TEXT_P(cstring_to_text_with_len(str->data, str->len));
 }
 
 
