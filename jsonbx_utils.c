@@ -17,6 +17,7 @@ void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
 bool h_atoi(char *c, int l, int *acc);
 JsonbValue* walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition);
 bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level);
+void addJsonbToParseState(JsonbParseState **jbps, Jsonb * jb);
 
 
 /*
@@ -382,7 +383,7 @@ walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condi
 JsonbValue*
 replacePath(JsonbIterator **it, Datum *path_elems,
 			  bool *path_nulls, int path_len,
-			  JsonbParseState  **st, int level, JsonbValue *newval)
+			  JsonbParseState  **st, int level, Jsonb *newval)
 {
 	JsonbValue  v, *res = NULL;
 	int         r;
@@ -412,7 +413,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 		if (idx > n)
 			idx = n;
 
-		pushJsonbValue(st, r, &v);
+		(void) pushJsonbValue(st, r, NULL);
 
 		/* iterate over array elements */
 		for(i=0; i<n; i++)
@@ -428,12 +429,14 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 				if (level == path_len - 1)
 				{
 					r = JsonbIteratorNext(it, &v, true); /* skip */
-					Assert(r == WJB_ELEM);
-					res = pushJsonbValue(st, r, newval);
+					if (newval != NULL)
+					{
+						addJsonbToParseState(st, newval);
+					}
 				}
 				else
 				{
-					res = replacePath(it, path_elems, path_nulls, path_len,
+					replacePath(it, path_elems, path_nulls, path_len,
 										st, level + 1, newval);
 				}
 			}
@@ -441,8 +444,8 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 			{
 				/* Replace was preformed, skip the rest of elements */
 				r = JsonbIteratorNext(it, &v, false);
-				Assert(r == WJB_ELEM);
-				res = pushJsonbValue(st, r, &v);
+
+				(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 
 				if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
 				{
@@ -458,7 +461,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 						{
 							--walking_level;
 						}
-						res = pushJsonbValue(st, r, &v);
+						(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 					}
 				}
 
@@ -467,28 +470,29 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 
 		r = JsonbIteratorNext(it, &v, false);
 		Assert(r == WJB_END_ARRAY);
-		res = pushJsonbValue(st, r, &v);
+		res = pushJsonbValue(st, r, NULL);
 	}
 	else if (r == WJB_BEGIN_OBJECT)
 	{
-		int         i;
-		uint32      n = v.val.object.nPairs;
+		int			i;
+		uint32 		n = v.val.object.nPairs;
 		JsonbValue  k;
-		bool        done = false;
+		bool		done = false;
 
-		pushJsonbValue(st, WJB_BEGIN_OBJECT, &v);
+		(void) pushJsonbValue(st, WJB_BEGIN_OBJECT, NULL);
 
 		if (level >= path_len || path_nulls[level])
+		{
 			done = true;
+		}
 
 		/* iterate over object keys */
 		for(i=0; i<n; i++)
 		{
 			r = JsonbIteratorNext(it, &k, true);
 			Assert(r == WJB_KEY);
-			res = pushJsonbValue(st, r, &k);
 
-			if (done == false &&
+			if (!done &&
 				k.val.string.len == VARSIZE_ANY_EXHDR(path_elems[level]) &&
 				memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
 					   k.val.string.len) == 0)
@@ -502,21 +506,27 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 				if (level == path_len - 1)
 				{
 					r = JsonbIteratorNext(it, &v, true); /* skip */
-					Assert(r == WJB_VALUE);
-					res = pushJsonbValue(st, r, newval);
+					if (newval != NULL)
+					{
+						(void) pushJsonbValue(st, WJB_KEY, &k);
+						addJsonbToParseState(st, newval);
+					}
 				}
 				else
 				{
-					res = replacePath(it, path_elems, path_nulls, path_len,
+					(void) pushJsonbValue(st, r, &k);
+					replacePath(it, path_elems, path_nulls, path_len,
 										st, level + 1, newval);
 				}
 			}
 			else
 			{
 				/* Replace was preformed, skip the rest of keys */
+				(void) pushJsonbValue(st, r, &k);
 				r = JsonbIteratorNext(it, &v, false);
-				Assert(r == WJB_VALUE);
-				res = pushJsonbValue(st, r, &v);
+
+				(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
+
 				if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
 				{
 					int walking_level = 1;
@@ -531,7 +541,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 						{
 							--walking_level;
 						}
-						res = pushJsonbValue(st, r, &v);
+						(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 					}
 				}
 			}
@@ -539,12 +549,11 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 
 		r = JsonbIteratorNext(it, &v, true);
 		Assert(r == WJB_END_OBJECT);
-		res = pushJsonbValue(st, r, &v);
+		res = pushJsonbValue(st, r, NULL);
 	}
 	else if (r == WJB_ELEM || r == WJB_VALUE)
 	{
-		pushJsonbValue(st, r, &v);
-		res = (void*)0x01; /* dummy value */
+		res = pushJsonbValue(st, r, &v);
 	}
 	else
 	{
@@ -562,8 +571,8 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 bool
 h_atoi(char *c, int l, int *acc)
 {
-	bool    negative = false;
-	char    *p = c;
+	bool	negative = false;
+	char	*p = c;
 
 	*acc = 0;
 
@@ -601,4 +610,55 @@ h_atoi(char *c, int l, int *acc)
 		*acc = - *acc;
 
 	return true;
+}
+
+/*
+ * Add values from the jsonb to the parse state.
+ *
+ * If the parse state container is an object, the jsonb is pushed as
+ * a value, not a key.
+ *
+ * This needs to be done using an iterator because pushJsonbValue doesn't
+ * like getting jbvBinary values, so we can't just push jb as a whole.
+ */
+void
+addJsonbToParseState(JsonbParseState **jbps, Jsonb * jb)
+{
+
+	JsonbIterator	*it;
+	JsonbValue		*o = &(*jbps)->contVal;
+	int				type;
+	JsonbValue		v;
+
+	it = JsonbIteratorInit(&jb->root);
+
+	Assert(o->type == jbvArray || o->type == jbvObject);
+
+	if (JB_ROOT_IS_SCALAR(jb))
+	{
+		(void) JsonbIteratorNext(&it, &v, false); /* skip array header */
+		(void) JsonbIteratorNext(&it, &v, false); /* fetch scalar value */
+
+		switch (o->type)
+		{
+			case jbvArray:
+				(void) pushJsonbValue(jbps, WJB_ELEM, &v);
+				break;
+			case jbvObject:
+				(void) pushJsonbValue(jbps, WJB_VALUE, &v);
+				break;
+			default:
+				elog(ERROR, "unexpected parent of nested structure");
+		}
+	}
+	else
+	{
+		while ((type = JsonbIteratorNext(&it, &v, false)) != WJB_DONE)
+		{
+			if (type == WJB_KEY || type == WJB_VALUE || type == WJB_ELEM)
+				(void) pushJsonbValue(jbps, type, &v);
+			else
+				(void) pushJsonbValue(jbps, type, NULL);
+		}
+	}
 }

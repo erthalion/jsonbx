@@ -253,14 +253,13 @@ jsonb_replace(PG_FUNCTION_ARGS)
 	ArrayType 			*path = PG_GETARG_ARRAYTYPE_P(1);
 	Jsonb 				*newval = PG_GETARG_JSONB(2);
 	Jsonb 				*out = palloc(VARSIZE(in) + VARSIZE(newval));
-	JsonbValue 			value, *res = NULL;
+	JsonbValue 			*res = NULL;
 	Datum 				*path_elems;
 	bool 				*path_nulls;
 	int					path_len;
 	JsonbIterator 		*it;
 	JsonbParseState 	*st = NULL;
 
-	Assert(ARR_ELEMTYPE(path) == TEXTOID);
 
 	if (ARR_NDIM(path) > 1)
 		ereport(ERROR,
@@ -282,42 +281,9 @@ jsonb_replace(PG_FUNCTION_ARGS)
 		PG_RETURN_POINTER(out);
 	}
 
-	if (JB_ROOT_COUNT(newval) == 0)
-	{
-		value.type = jbvNull;
-	}
-	else
-	{
-		uint32 r, is_scalar = false;
-		it = JsonbIteratorInit(&newval->root);
-		is_scalar = it->isScalar;
-
-		/*
-		 * New value can have a complex type (object or array).
-		 * In that case we must unwrap this value to JsonbValue.
-		 */
-		while((r = JsonbIteratorNext(&it, &value, false)) != 0)
-		{
-			res = pushJsonbValue(&st, r, &value);
-		}
-		
-		/*
-		 * if new value is a scalar,
-		 * we must extract this scalar from jbvArray
-		 */
-		if (is_scalar && res->type == jbvArray)
-		{
-			value = res->val.array.elems[0];
-		}
-		else
-		{
-			value = *res;
-		}
-	}
-
 	it = JsonbIteratorInit(&in->root);
 
-	res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, &value);
+	res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, newval);
 
 	if (res == NULL)
 	{
