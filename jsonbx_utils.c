@@ -15,7 +15,7 @@ typedef bool (*walk_condition)(JsonbParseState**, JsonbValue*, uint32 /* token *
 void add_indent(StringInfo out, bool indent, int level);
 void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
 bool h_atoi(char *c, int l, int *acc);
-JsonbValue* walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition);
+JsonbValue *walkJsonb(JsonbIterator **it, JsonbParseState **state, bool stop_at_level_zero);
 bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level);
 void addJsonbToParseState(JsonbParseState **jbps, Jsonb * jb);
 
@@ -309,16 +309,16 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		if (prepend)
 		{
 			pushJsonbValue(state, WJB_BEGIN_OBJECT, v_object);
-			walkJsonb(it_object, v_object, state, NULL); 
+			walkJsonb(it_object, state, false);
 
-			res = walkJsonb(it_array, v_array, state, NULL);
+			res = walkJsonb(it_array, state, false);
 		}
 		else
 		{
-			walkJsonb(it_array, v_array, state, untilLast);
+			walkJsonb(it_array, state, true);
 
 			pushJsonbValue(state, WJB_BEGIN_OBJECT, v_object);
-			walkJsonb(it_object, v_object, state, NULL); 
+			walkJsonb(it_object, state, false);
 
 			res = pushJsonbValue(state, WJB_END_ARRAY, v_array);
 		}
@@ -344,16 +344,16 @@ untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level)
 
 /*
  * walkJsonb:
- * Convenient way to convert entire Jsonb or its part,
- * depends on arbitrary conditons.
+ * Copy elements from the iterator to the parse state
+ * stopping at level zero if required.
  */
 JsonbValue*
-walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condition until_condition)
+walkJsonb(JsonbIterator **it, JsonbParseState **state, bool stop_at_level_zero)
 {
 	uint32          r, level = 1;
-	JsonbValue      *res = NULL;
+	JsonbValue      v, *res = NULL;
 
-	while((r = JsonbIteratorNext(it, v, false)) != 0)
+	while((r = JsonbIteratorNext(it, &v, false)) != WJB_DONE)
 	{
 		if (r == WJB_BEGIN_OBJECT || r == WJB_BEGIN_ARRAY) {
 			++level;
@@ -362,10 +362,10 @@ walkJsonb(JsonbIterator **it, JsonbValue *v, JsonbParseState **state, walk_condi
 			--level;
 		}
 
-		if(until_condition != NULL && until_condition(state, v, r, level))
+		if(stop_at_level_zero && level == 0)
 			break;
 
-		res = pushJsonbValue(state, r, v);
+		res = pushJsonbValue(state, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 	}
 
 	return res;
