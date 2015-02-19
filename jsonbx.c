@@ -100,7 +100,8 @@ jsonb_concat(PG_FUNCTION_ARGS)
 
 /*
  * jsonb_delete:
- * Delete one key or element from jsonb by name.
+ * Return copy of jsonb with the specified item removed.
+ * Item is a one key or element from jsonb, specified by name.
  * If there are many keys or elements with than name,
  * the first one will be removed.
  */
@@ -164,6 +165,7 @@ jsonb_delete(PG_FUNCTION_ARGS)
 
 /*
  * jsonb_delete_idx:
+ * Return a copy of jsonb withour specified items.
  * Delete key (only from the top level of object) or element from jsonb by index (idx).
  * Negative idx value is supported, and it implies the countdown from the last key/element.
  * If idx is more, than numbers of keys/elements, or equal - nothing will be deleted.
