@@ -290,6 +290,80 @@ select '{"a":1, "b":2, "c":3}'::jsonb - -4;
  {"a": 1, "b": 2, "c": 3}
 (1 row)
 
+select jsonb_delete('{"a":1, "b":2, "c":3}'::jsonb, '{d, e}'::text[]);
+       jsonb_delete       
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select jsonb_delete('{"a":1, "b":2, "c":3}'::jsonb, '{b}'::text[]);
+   jsonb_delete   
+------------------
+ {"a": 1, "c": 3}
+(1 row)
+
+select jsonb_delete('{"a":{"c":1, "d": 2}, "b":3}'::jsonb, '{a, c}'::text[]);
+      jsonb_delete       
+-------------------------
+ {"a": {"d": 2}, "b": 3}
+(1 row)
+
+select jsonb_delete('{"a":{"c":1, "d":{"f": 3, "g": 4}}, "b":5}'::jsonb, '{a, d, g}'::text[]);
+              jsonb_delete              
+----------------------------------------
+ {"a": {"c": 1, "d": {"f": 3}}, "b": 5}
+(1 row)
+
+select jsonb_delete('{"a":1, "b":2, "c":3}'::jsonb, '{}'::text[]);
+       jsonb_delete       
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - '{d, e}'::text[];
+         ?column?         
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - '{b}'::text[];
+     ?column?     
+------------------
+ {"a": 1, "c": 3}
+(1 row)
+
+select '{"a":{"c":1, "d":2}, "b":3}'::jsonb - '{a, c}'::text[];
+        ?column?         
+-------------------------
+ {"a": {"d": 2}, "b": 3}
+(1 row)
+
+select '{"a":{"c":1, "d":{"f": 3, "g": 4}}, "b":5}'::jsonb - '{a, d, g}'::text[];
+                ?column?                
+----------------------------------------
+ {"a": {"c": 1, "d": {"f": 3}}, "b": 5}
+(1 row)
+
+select '{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[];
+         ?column?         
+--------------------------
+ {"a": 1, "b": 2, "c": 3}
+(1 row)
+
+select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{a}'::text[])
+         = pg_column_size('{"b":2, "c":3}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+
+select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[])
+         = pg_column_size('{"a":1, "b":2, "c":3}'::jsonb);
+ ?column? 
+----------
+ t
+(1 row)
+
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{n}', '[1,2,3]');
                               jsonb_replace                               
 --------------------------------------------------------------------------

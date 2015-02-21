@@ -59,6 +59,21 @@ select '{"a":1, "b":2, "c":3}'::jsonb - -2;
 select '{"a":1, "b":2, "c":3}'::jsonb - -3;
 select '{"a":1, "b":2, "c":3}'::jsonb - -4;
 
+select jsonb_delete('{"a":1, "b":2, "c":3}'::jsonb, '{d, e}'::text[]);
+select jsonb_delete('{"a":1, "b":2, "c":3}'::jsonb, '{b}'::text[]);
+select jsonb_delete('{"a":{"c":1, "d": 2}, "b":3}'::jsonb, '{a, c}'::text[]);
+select jsonb_delete('{"a":{"c":1, "d":{"f": 3, "g": 4}}, "b":5}'::jsonb, '{a, d, g}'::text[]);
+select jsonb_delete('{"a":1, "b":2, "c":3}'::jsonb, '{}'::text[]);
+select '{"a":1, "b":2, "c":3}'::jsonb - '{d, e}'::text[];
+select '{"a":1, "b":2, "c":3}'::jsonb - '{b}'::text[];
+select '{"a":{"c":1, "d":2}, "b":3}'::jsonb - '{a, c}'::text[];
+select '{"a":{"c":1, "d":{"f": 3, "g": 4}}, "b":5}'::jsonb - '{a, d, g}'::text[];
+select '{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[];
+select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{a}'::text[])
+         = pg_column_size('{"b":2, "c":3}'::jsonb);
+select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[])
+         = pg_column_size('{"a":1, "b":2, "c":3}'::jsonb);
+
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{n}', '[1,2,3]');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '[1,2,3]');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{d,1,0}', '[1,2,3]');

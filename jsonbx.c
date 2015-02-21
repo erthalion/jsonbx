@@ -20,6 +20,9 @@ Datum jsonb_delete(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_delete_idx);
 Datum jsonb_delete_idx(PG_FUNCTION_ARGS);
 
+PG_FUNCTION_INFO_V1(jsonb_delete_path);
+Datum jsonb_delete_path(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(jsonb_replace);
 Datum jsonb_replace(PG_FUNCTION_ARGS);
 
@@ -286,6 +289,59 @@ jsonb_replace(PG_FUNCTION_ARGS)
 	it = JsonbIteratorInit(&in->root);
 
 	res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, newval);
+
+	if (res == NULL)
+	{
+		SET_VARSIZE(out, VARHDRSZ);
+	}
+	else
+	{
+		out = JsonbValueToJsonb(res);
+	}
+
+	PG_RETURN_POINTER(out);
+}
+
+
+/*
+ * jsonb_delete_path:
+ */
+Datum
+jsonb_delete_path(PG_FUNCTION_ARGS)
+{
+	Jsonb	   *in = PG_GETARG_JSONB(0);
+	ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1);
+	Jsonb	   *out = palloc(VARSIZE(in));
+	JsonbValue *res = NULL;
+	Datum	   *path_elems;
+	bool	   *path_nulls;
+	int			path_len;
+	JsonbIterator *it;
+	JsonbParseState *st = NULL;
+
+	if (ARR_NDIM(path) > 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
+				 errmsg("wrong number of array subscripts")));
+
+	if (JB_ROOT_COUNT(in) == 0)
+	{
+		memcpy(out, in, VARSIZE(in));
+		PG_RETURN_POINTER(out);
+	}
+
+	deconstruct_array(path, TEXTOID, -1, false, 'i',
+					  &path_elems, &path_nulls, &path_len);
+
+	if (path_len == 0)
+	{
+		memcpy(out, in, VARSIZE(in));
+		PG_RETURN_POINTER(out);
+	}
+
+	it = JsonbIteratorInit(&in->root);
+
+	res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, NULL);
 
 	if (res == NULL)
 	{

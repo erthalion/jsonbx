@@ -40,6 +40,17 @@ CREATE OPERATOR - (
 	PROCEDURE = jsonb_delete
 );
 
+CREATE FUNCTION jsonb_delete(jsonb,text[])
+RETURNS jsonb
+AS 'MODULE_PATHNAME','jsonb_delete_path'
+LANGUAGE C STRICT;
+
+CREATE OPERATOR - (
+	LEFTARG = jsonb,
+	RIGHTARG = text[],
+	PROCEDURE = jsonb_delete
+);
+
 CREATE FUNCTION jsonb_replace(jsonb,text[],jsonb)
 RETURNS jsonb
 AS 'MODULE_PATHNAME','jsonb_replace'
