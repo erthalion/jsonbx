@@ -6,10 +6,11 @@ As you know, PostgreSQL introduced Json(b) [support](http://obartunov.livejourna
 List of implemented functions
 ---------------------------------
 
-* jsonb_print
+* jsonb_indent
 * jsonb_concat
 * jsonb_delete(jsonb, text)
 * jsonb_delete_idx(jsonb, int)
+* jsonb_delete_path(jsonb, text[])
 * jsonb_replace(jsonb, text[], jsonb)
 
 List of implemented operators
@@ -18,3 +19,4 @@ List of implemented operators
 * concatenation operator (||)
 * delete key operator (jsonb - text)
 * delete key by index operator (jsonb - int)
+* delete key by path operator (jsonb - text[])
