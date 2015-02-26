@@ -14,7 +14,7 @@
 typedef bool (*walk_condition)(JsonbParseState**, JsonbValue*, uint32 /* token */, uint32 /* level */);
 void add_indent(StringInfo out, bool indent, int level);
 void jsonb_put_escaped_value(StringInfo out, JsonbValue * scalarVal);
-bool h_atoi(char *c, int l, int *acc);
+bool h_atoi(char *c, int *acc);
 JsonbValue *walkJsonb(JsonbIterator **it, JsonbParseState **state, bool stop_at_level_zero);
 bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level);
 void addJsonbToParseState(JsonbParseState **jbps, Jsonb * jb);
@@ -395,13 +395,18 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 		int     idx, i;
 		uint32  n = v.val.array.nElems;
 
-		idx = n;
+		/* If we can't convert path element to integer index,
+		 * the last element will be used.
+		 */
 		if (level >= path_len || path_nulls[level] ||
-			h_atoi(VARDATA_ANY(path_elems[level]),
-				   VARSIZE_ANY_EXHDR(path_elems[level]), &idx) == false)
+			h_atoi(VARDATA_ANY(path_elems[level]), &idx) == false)
 		{
 			idx = n;
 		}
+		/* Otherwise we should take care about negative indexes,
+		 * it implies the countdown from the last element.
+		 * If -idx is more, than number of elements - the last element will be used
+		 */
 		else if (idx < 0)
 		{
 			if (-idx > n)
@@ -442,7 +447,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 			}
 			else
 			{
-				/* Replace was preformed, skip the rest of elements */
+				/* We are out of the specified path, skip the rest of elements */
 				r = JsonbIteratorNext(it, &v, false);
 
 				(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
@@ -521,7 +526,7 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 			}
 			else
 			{
-				/* Replace was preformed, skip the rest of keys */
+				/* We are out of the specified path, skip the rest of elements */
 				(void) pushJsonbValue(st, r, &k);
 				r = JsonbIteratorNext(it, &v, false);
 
@@ -565,51 +570,25 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 
 /*
  * h_atoi:
- * Verify, that first argument (path element), which presented by array index,
- * pointed out the the element in path, and pass this element in acc.
+ * Return the state of convertion (true/false),
+ * and the result of convertion throught the last argument.
  */
 bool
-h_atoi(char *c, int l, int *acc)
+h_atoi(char *c, int *idx)
 {
-	bool	negative = false;
-	char	*p = c;
+	char	   *badp;
+	errno = 0;
 
-	*acc = 0;
+	*idx = (int) strtol(c, &badp, 10);
 
-	while(isspace(*p) && p - c < l)
-		p++;
-
-	if (p - c >= l)
+	if (errno != 0 || badp == c)
+	{
 		return false;
-
-	if (*p == '-')
-	{
-		negative = true;
-		p++;
 	}
-	else if (*p == '+')
+	else
 	{
-		p++;
+		return true;
 	}
-
-	if (p - c >= l)
-		return false;
-
-
-	while(p - c < l)
-	{
-		if (!isdigit(*p))
-			return false;
-
-		*acc *= 10;
-		*acc += (*p - '0');
-		p++;
-	}
-
-	if (negative)
-		*acc = - *acc;
-
-	return true;
 }
 
 /*
