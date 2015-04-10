@@ -235,7 +235,7 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		 * Append the all tokens from v1 to res, exept
 		 * last WJB_END_OBJECT (because res will not be finished yet).
 		 */
-		res = pushJsonbValue(state, r1, &v1);
+		(void) pushJsonbValue(state, r1, NULL);
 		while((r1 = JsonbIteratorNext(it1, &v1, false)) != 0)
 		{
 			if (r1 == WJB_BEGIN_OBJECT) {
@@ -246,7 +246,7 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 			}
 
 			if (level != 0) {
-				res = pushJsonbValue(state, r1, &v1);
+				res = pushJsonbValue(state, r1, r1 < WJB_BEGIN_ARRAY ? &v1 : NULL);
 			}
 		}
 
@@ -256,15 +256,15 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		 */
 		while((r2 = JsonbIteratorNext(it2, &v2, false)) != 0)
 		{
-			res = pushJsonbValue(state, r2, &v2);
+			res = pushJsonbValue(state, r2, r2 < WJB_BEGIN_ARRAY ? &v2 : NULL);
 		}
 	}
 	/*
-	 * Both elements are arrays.
+	 * Both elements are arrays (either can be scalar).
 	 */
 	else if (rk1 == WJB_BEGIN_ARRAY && rk2 == WJB_BEGIN_ARRAY)
 	{
-		res = pushJsonbValue(state, r1, &v1);
+		res = pushJsonbValue(state, r1, NULL);
 		for(;;)
 		{
 			r1 = JsonbIteratorNext(it1, &v1, true);
@@ -278,12 +278,24 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		{
 			if (!(r2 == WJB_END_OBJECT || r2 == WJB_END_ARRAY))
 			{
-				pushJsonbValue(state, WJB_ELEM, &v2);
+				if (rk1 == WJB_BEGIN_OBJECT)
+				{
+					pushJsonbValue(state, WJB_KEY, NULL);
+					r2 = JsonbIteratorNext(it2, &v2, true);
+					Assert(r2 == WJB_ELEM);
+					pushJsonbValue(state, WJB_VALUE, &v2);
+				}
+				else
+				{
+					pushJsonbValue(state, WJB_ELEM, &v2);
+				}
 			}
 		}
 
-		res = pushJsonbValue(state, WJB_END_ARRAY,
-							  NULL/* signal to sort */);
+
+		res = pushJsonbValue(state,
+							(rk1 == WJB_BEGIN_OBJECT) ? WJB_END_OBJECT : WJB_END_ARRAY,
+							 NULL /* signal to sort */ );
 	}
 	/*
 	 *  One of the elements is object, another is array.
@@ -300,15 +312,12 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		JsonbIterator** it_array = choice_array(rk1, it1, it2);
 		JsonbIterator** it_object = choice_object(rk1, it1, it2);
 
-		JsonbValue* v_array = choice_array(rk1, &v1, &v2);
-		JsonbValue* v_object = choice_object(rk1, &v1, &v2);
-
 		bool prepend = (rk1 == WJB_BEGIN_OBJECT) ? true : false;
 
-		pushJsonbValue(state, WJB_BEGIN_ARRAY, v_array);
+		pushJsonbValue(state, WJB_BEGIN_ARRAY, NULL);
 		if (prepend)
 		{
-			pushJsonbValue(state, WJB_BEGIN_OBJECT, v_object);
+			pushJsonbValue(state, WJB_BEGIN_OBJECT, NULL);
 			walkJsonb(it_object, state, false);
 
 			res = walkJsonb(it_array, state, false);
@@ -317,10 +326,10 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
 		{
 			walkJsonb(it_array, state, true);
 
-			pushJsonbValue(state, WJB_BEGIN_OBJECT, v_object);
+			pushJsonbValue(state, WJB_BEGIN_OBJECT, NULL);
 			walkJsonb(it_object, state, false);
 
-			res = pushJsonbValue(state, WJB_END_ARRAY, v_array);
+			res = pushJsonbValue(state, WJB_END_ARRAY, NULL);
 		}
 	}
 	else

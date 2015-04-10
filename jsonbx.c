@@ -149,7 +149,7 @@ jsonb_delete(PG_FUNCTION_ARGS)
 			continue;
 		}
 
-		res = pushJsonbValue(&state, r, &v);
+		res = pushJsonbValue(&state, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 	}
 
 	if (res == NULL || (res->type == jbvArray && res->val.array.nElems == 0) ||
@@ -215,7 +215,7 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
 		PG_RETURN_POINTER(out);
 	}
 
-	pushJsonbValue(&state, r, &v);
+	pushJsonbValue(&state, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 
 	while((r = JsonbIteratorNext(&it, &v, true)) != 0)
 	{
@@ -229,7 +229,7 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
 			}
 		}
 
-		res = pushJsonbValue(&state, r, &v);
+		res = pushJsonbValue(&state, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 	}
 
 	if (res == NULL || (res->type == jbvArray && res->val.array.nElems == 0) ||
