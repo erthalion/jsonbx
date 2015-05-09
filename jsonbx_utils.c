@@ -19,6 +19,14 @@ JsonbValue *walkJsonb(JsonbIterator **it, JsonbParseState **state, bool stop_at_
 bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level);
 void addJsonbToParseState(JsonbParseState **jbps, Jsonb * jb);
 
+static void replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+							  int path_len, JsonbParseState **st, int level,
+							  Jsonb *newval, uint32	nelems);
+static void replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+							 int path_len, JsonbParseState **st, int level,
+							 Jsonb *newval, uint32 npairs);
+
+
 
 /*
  * JsonbToCStringExtended:
@@ -399,206 +407,218 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 
 	r = JsonbIteratorNext(it, &v, false);
 
-	if (r == WJB_BEGIN_ARRAY)
+	switch (r)
 	{
-		int     idx, i;
-		uint32  n = v.val.array.nElems;
+		case WJB_BEGIN_ARRAY:
+			(void) pushJsonbValue(st, r, NULL);
+			replacePathArray(it, path_elems, path_nulls, path_len, st, level,
+							 newval, v.val.array.nElems);
+			r = JsonbIteratorNext(it, &v, false);
+			Assert(r == WJB_END_ARRAY);
+			res = pushJsonbValue(st, r, NULL);
 
-		/* If we can't convert path element to integer index,
-		 * the last element will be used.
-		 */
-		if (level >= path_len || path_nulls[level] ||
-			h_atoi(VARDATA_ANY(path_elems[level]), &idx) == false)
-		{
-			idx = n;
-		}
-		/* Otherwise we should take care about negative indexes,
-		 * it implies the countdown from the last element.
-		 * If -idx is more, than number of elements - the last element will be used
-		 */
-		else if (idx < 0)
-		{
-			if (-idx > n)
-				idx = n;
-			else
-				idx = n + idx;
-		}
+			break;
+		case WJB_BEGIN_OBJECT:
+			(void) pushJsonbValue(st, r, NULL);
+			replacePathObject(it, path_elems, path_nulls, path_len, st, level,
+							  newval, v.val.object.nPairs);
+			r = JsonbIteratorNext(it, &v, true);
+			Assert(r == WJB_END_OBJECT);
+			res = pushJsonbValue(st, r, NULL);
 
-		if (idx > n)
-			idx = n;
-
-		(void) pushJsonbValue(st, r, NULL);
-
-		/* iterate over array elements */
-		for(i=0; i<n; i++)
-		{
-			if (i == idx && level < path_len)
-			{
-				/*
-				 * The current path item was found.
-				 * If we reached the end of path, current element will be replaced
-				 * Otherwise level value will be incremented, and the next step of
-				 * recursion will be started.
-				 */
-				if (level == path_len - 1)
-				{
-					r = JsonbIteratorNext(it, &v, true); /* skip */
-					if (newval != NULL)
-					{
-						addJsonbToParseState(st, newval);
-					}
-				}
-				else
-				{
-					replacePath(it, path_elems, path_nulls, path_len,
-										st, level + 1, newval);
-				}
-			}
-			else
-			{
-				/* We are out of the specified path, skip the rest of elements */
-				r = JsonbIteratorNext(it, &v, false);
-
-				(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
-
-				if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
-				{
-					int walking_level = 1;
-					while(walking_level != 0)
-					{
-						r = JsonbIteratorNext(it, &v, false);
-						if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
-						{
-							++walking_level;
-						}
-						if (r == WJB_END_ARRAY || r == WJB_END_OBJECT)
-						{
-							--walking_level;
-						}
-						(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
-					}
-				}
-
-			}
-		}
-
-		r = JsonbIteratorNext(it, &v, false);
-		Assert(r == WJB_END_ARRAY);
-		res = pushJsonbValue(st, r, NULL);
-	}
-	else if (r == WJB_BEGIN_OBJECT)
-	{
-		int			i;
-		uint32 		n = v.val.object.nPairs;
-		JsonbValue  k;
-		bool		done = false;
-
-		(void) pushJsonbValue(st, WJB_BEGIN_OBJECT, NULL);
-
-		if (level >= path_len || path_nulls[level])
-		{
-			done = true;
-		}
-
-		/* iterate over object keys */
-		for(i=0; i<n; i++)
-		{
-			r = JsonbIteratorNext(it, &k, true);
-			Assert(r == WJB_KEY);
-
-			if (!done &&
-				k.val.string.len == VARSIZE_ANY_EXHDR(path_elems[level]) &&
-				memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
-					   k.val.string.len) == 0)
-			{
-				/*
-				 * The current path item was found.
-				 * If we reached the end of path, current element will be replaced
-				 * Otherwise level value will be incremented, and the next step of
-				 * recursion will be started.
-				 */
-				if (level == path_len - 1)
-				{
-					r = JsonbIteratorNext(it, &v, true); /* skip */
-					if (newval != NULL)
-					{
-						(void) pushJsonbValue(st, WJB_KEY, &k);
-						addJsonbToParseState(st, newval);
-					}
-				}
-				else
-				{
-					(void) pushJsonbValue(st, r, &k);
-					replacePath(it, path_elems, path_nulls, path_len,
-										st, level + 1, newval);
-				}
-			}
-			else
-			{
-				/* We are out of the specified path, skip the rest of elements */
-				(void) pushJsonbValue(st, r, &k);
-				r = JsonbIteratorNext(it, &v, false);
-
-				(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
-
-				if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
-				{
-					int walking_level = 1;
-					while(walking_level != 0)
-					{
-						r = JsonbIteratorNext(it, &v, false);
-						if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
-						{
-							++walking_level;
-						}
-						if (r == WJB_END_ARRAY || r == WJB_END_OBJECT)
-						{
-							--walking_level;
-						}
-						(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
-					}
-				}
-			}
-		}
-
-		r = JsonbIteratorNext(it, &v, true);
-		Assert(r == WJB_END_OBJECT);
-		res = pushJsonbValue(st, r, NULL);
-	}
-	else if (r == WJB_ELEM || r == WJB_VALUE)
-	{
-		res = pushJsonbValue(st, r, &v);
-	}
-	else
-	{
-		elog(PANIC, "impossible state");
+			break;
+		case WJB_ELEM:
+		case WJB_VALUE:
+			res = pushJsonbValue(st, r, &v);
+			break;
+		default:
+			elog(PANIC, "impossible state");
 	}
 
 	return res;
 }
 
 /*
- * h_atoi:
- * Return the state of convertion (true/false),
- * and the result of convertion throught the last argument.
+ * Object walker for replacePath
  */
-bool
-h_atoi(char *c, int *idx)
+static void
+replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+				  int path_len, JsonbParseState **st, int level,
+				  Jsonb *newval, uint32	nelems)
 {
-	char	   *badp;
-	errno = 0;
+	JsonbValue	v;
+	int			i;
+	JsonbValue	k;
+	bool		done = false;
 
-	*idx = (int) strtol(c, &badp, 10);
+	if (level >= path_len || path_nulls[level])
+		done = true;
 
-	if (errno != 0 || badp == c)
+	/* iterate over object keys */
+	for (i = 0; i < nelems; i++)
 	{
-		return false;
-	}
-	else
-	{
-		return true;
+		int		r = JsonbIteratorNext(it, &k, true);
+		Assert(r == WJB_KEY);
+
+		if (!done &&
+			k.val.string.len == VARSIZE_ANY_EXHDR(path_elems[level]) &&
+			memcmp(k.val.string.val, VARDATA_ANY(path_elems[level]),
+				   k.val.string.len) == 0)
+		{
+			/*
+			 * The current path item was found.
+			 * If we reached the end of path, current element will be replaced
+			 * Otherwise level value will be incremented, and the next step of
+			 * recursion will be started.
+			 */
+			if (level == path_len - 1)
+			{
+				r = JsonbIteratorNext(it, &v, true);		/* skip */
+				if (newval != NULL)
+				{
+					(void) pushJsonbValue(st, WJB_KEY, &k);
+					addJsonbToParseState(st, newval);
+				}
+			}
+			else
+			{
+				(void) pushJsonbValue(st, r, &k);
+				replacePath(it, path_elems, path_nulls, path_len,
+							st, level + 1, newval);
+			}
+		}
+		else
+		{
+			/* We are out of the specified path, skip the rest of elements */
+			(void) pushJsonbValue(st, r, &k);
+			r = JsonbIteratorNext(it, &v, false);
+
+			(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
+			if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+			{
+				int		walking_level = 1;
+
+				while (walking_level != 0)
+				{
+					r = JsonbIteratorNext(it, &v, false);
+
+					if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+					{
+						++walking_level;
+					}
+					if (r == WJB_END_ARRAY || r == WJB_END_OBJECT)
+					{
+						--walking_level;
+					}
+
+					(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
+				}
+			}
+		}
 	}
 }
+
+/*
+ * Array walker for replacePath
+ */
+static void
+replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+				 int path_len, JsonbParseState **st, int level,
+				 Jsonb *newval, uint32 npairs)
+{
+	JsonbValue	v;
+	int			idx,
+				i;
+	char	   *badp;
+
+	/* If we can't convert path element to integer index,
+	 * the last element will be used.
+	 */
+	if (level < path_len && !path_nulls[level])
+	{
+		char	   *c = VARDATA_ANY(path_elems[level]);
+
+		errno = 0;
+		idx = (int) strtol(c, &badp, 10);
+		if (errno != 0 || badp == c)
+			idx = npairs;
+	}
+	/* Otherwise we should take care about negative indexes,
+	 * it implies the countdown from the last element.
+	 * If -idx is more, than number of elements - the last element will be used
+	 */
+	else
+	{
+		idx = npairs;
+	}
+
+	if (idx < 0)
+	{
+		if (-idx > npairs)
+			idx = npairs;
+		else
+			idx = npairs + idx;
+	}
+
+	if (idx > npairs)
+		idx = npairs;
+
+	/* iterate over the array elements */
+	for (i = 0; i < npairs; i++)
+	{
+		int		r;
+
+		if (i == idx && level < path_len)
+		{
+			/*
+			 * The current path item was found.
+			 * If we reached the end of path, current element will be replaced
+			 * Otherwise level value will be incremented, and the next step of
+			 * recursion will be started.
+			 */
+			if (level == path_len - 1)
+			{
+				r = JsonbIteratorNext(it, &v, true);		/* skip */
+				if (newval != NULL)
+				{
+					addJsonbToParseState(st, newval);
+				}
+			}
+			else
+				(void) replacePath(it, path_elems, path_nulls, path_len,
+								   st, level + 1, newval);
+		}
+		else
+		{
+			/* We are out of the specified path, skip the rest of elements */
+			r = JsonbIteratorNext(it, &v, false);
+
+			(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
+
+			if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+			{
+				int		walking_level = 1;
+
+				while (walking_level != 0)
+				{
+					r = JsonbIteratorNext(it, &v, false);
+
+					if (r == WJB_BEGIN_ARRAY || r == WJB_BEGIN_OBJECT)
+					{
+						++walking_level;
+					}
+					if (r == WJB_END_ARRAY || r == WJB_END_OBJECT)
+					{
+						--walking_level;
+					}
+
+					(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
+				}
+			}
+		}
+	}
+}
+
 
 /*
  * Add values from the jsonb to the parse state.

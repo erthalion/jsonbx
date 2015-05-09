@@ -2,9 +2,9 @@
 \echo Use "CREATE EXTENSION jsonbx" to load this file. \quit
 
 
-CREATE FUNCTION jsonb_indent(jsonb)
+CREATE FUNCTION jsonb_pretty(jsonb)
 RETURNS text
-AS 'MODULE_PATHNAME', 'jsonb_indent'
+AS 'MODULE_PATHNAME', 'jsonb_pretty'
 LANGUAGE C STRICT;
 
 CREATE FUNCTION jsonb_concat(jsonb, jsonb)

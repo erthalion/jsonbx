@@ -8,8 +8,8 @@
 
 PG_MODULE_MAGIC;
 
-PG_FUNCTION_INFO_V1(jsonb_indent);
-Datum jsonb_indent(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(jsonb_pretty);
+Datum jsonb_pretty(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(jsonb_concat);
 Datum jsonb_concat(PG_FUNCTION_ARGS);
@@ -27,11 +27,11 @@ PG_FUNCTION_INFO_V1(jsonb_replace);
 Datum jsonb_replace(PG_FUNCTION_ARGS);
 
 /*
- * jsonb_indent:
+ * jsonb_pretty:
  * Pretty-printed text for the jsonb
  */
 Datum
-jsonb_indent(PG_FUNCTION_ARGS)
+jsonb_pretty(PG_FUNCTION_ARGS)
 {
 	Jsonb	   *jb = PG_GETARG_JSONB(0);
 	StringInfo	str = makeStringInfo();
