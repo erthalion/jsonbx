@@ -30,10 +30,14 @@ select pg_column_size('{"aa":1, "b":2}'::jsonb || '{}'::jsonb) = pg_column_size(
 select pg_column_size('{}'::jsonb || '{"aa":1, "b":2}'::jsonb) = pg_column_size('{"aa":1, "b":2}'::jsonb);
 
 select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'a');
+select jsonb_delete('{"a":1}'::jsonb, 'a');
+select jsonb_delete('"a"'::jsonb, 'a');
 select jsonb_delete('{"a":null , "b":2, "c":3}'::jsonb, 'a');
 select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'b');
 select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'c');
 select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'd');
+select '{"a":1}'::jsonb - 'a'::text;
+select '"a"'::jsonb - 'a'::text;
 select '{"a":1 , "b":2, "c":3}'::jsonb - 'a'::text;
 select '{"a":null , "b":2, "c":3}'::jsonb - 'a'::text;
 select '{"a":1 , "b":2, "c":3}'::jsonb - 'b'::text;
@@ -74,6 +78,7 @@ select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{a}'::text[])
 select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[])
          = pg_column_size('{"a":1, "b":2, "c":3}'::jsonb);
 
+select jsonb_replace('"a"'::jsonb, '{a}', '[1,2,3]');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{n}', '[1,2,3]');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '[1,2,3]');
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{d,1,0}', '[1,2,3]');

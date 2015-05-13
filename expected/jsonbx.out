@@ -134,6 +134,14 @@ select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'a');
  {"b": 2, "c": 3}
 (1 row)
 
+select jsonb_delete('{"a":1}'::jsonb, 'a');
+ jsonb_delete 
+--------------
+ {}
+(1 row)
+
+select jsonb_delete('"a"'::jsonb, 'a');
+ERROR:  cannot get delete from scalar
 select jsonb_delete('{"a":null , "b":2, "c":3}'::jsonb, 'a');
    jsonb_delete   
 ------------------
@@ -158,6 +166,14 @@ select jsonb_delete('{"a":1 , "b":2, "c":3}'::jsonb, 'd');
  {"a": 1, "b": 2, "c": 3}
 (1 row)
 
+select '{"a":1}'::jsonb - 'a'::text;
+ ?column? 
+----------
+ {}
+(1 row)
+
+select '"a"'::jsonb - 'a'::text;
+ERROR:  cannot get delete from scalar
 select '{"a":1 , "b":2, "c":3}'::jsonb - 'a'::text;
      ?column?     
 ------------------
@@ -364,6 +380,8 @@ select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[])
  t
 (1 row)
 
+select jsonb_replace('"a"'::jsonb, '{a}', '[1,2,3]');
+ERROR:  cannot replace path in scalar
 select jsonb_replace('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{n}', '[1,2,3]');
                               jsonb_replace                               
 --------------------------------------------------------------------------
