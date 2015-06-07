@@ -1,9 +1,10 @@
-sudo: required
 language: c
 services:
   - postgresql
 addons:
   postgresql: "9.4"
+before_install:
+  - sudo apt-get update -qq
 before_script:
   - sudo apt-get install postgresql-server-dev-9.4
   - sudo apt-get install postgresql-common
