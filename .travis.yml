@@ -1,0 +1,6 @@
+language: c
+services:
+  - postgresql
+addons:
+  postgresql: "9.4"
+script: travis_test.sh
