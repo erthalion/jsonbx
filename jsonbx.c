@@ -23,8 +23,8 @@ Datum jsonb_delete_idx(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(jsonb_delete_path);
 Datum jsonb_delete_path(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(jsonb_replace);
-Datum jsonb_replace(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(jsonb_set);
+Datum jsonb_set(PG_FUNCTION_ARGS);
 
 /*
  * jsonb_pretty:
@@ -232,17 +232,18 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
 }
 
 /*
- * jsonb_replace:
- * Replace value of jsonb key or jsonb element, which can be found by the specified path.
+ * jsonb_set:
+ * Replace/create value of jsonb key or jsonb element, which can be found by the specified path.
  * Path must be replesented as an array of key names or indexes. If indexes will be used,
  * the same rules implied as for jsonb_delete_idx (negative indexing and edge cases)
  */
 Datum
-jsonb_replace(PG_FUNCTION_ARGS)
+jsonb_set(PG_FUNCTION_ARGS)
 {
 	Jsonb 				*in = PG_GETARG_JSONB(0);
 	ArrayType 			*path = PG_GETARG_ARRAYTYPE_P(1);
 	Jsonb 				*newval = PG_GETARG_JSONB(2);
+	bool       			create = PG_GETARG_BOOL(3);
 	JsonbValue 			*res = NULL;
 	Datum 				*path_elems;
 	bool 				*path_nulls;
@@ -259,10 +260,10 @@ jsonb_replace(PG_FUNCTION_ARGS)
 	if (JB_ROOT_IS_SCALAR(in))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("cannot replace path in scalar")));
+				 errmsg("cannot set path in scalar")));
 
 
-	if (JB_ROOT_COUNT(in) == 0)
+	if (JB_ROOT_COUNT(in) == 0 && !create)
 	{
 		PG_RETURN_JSONB(in);
 	}
@@ -277,7 +278,7 @@ jsonb_replace(PG_FUNCTION_ARGS)
 
 	it = JsonbIteratorInit(&in->root);
 
-	res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, newval);
+	res = setPath(&it, path_elems, path_nulls, path_len, &st, 0, newval, create);
 
 	Assert (res != NULL);
 	PG_RETURN_JSONB(JsonbValueToJsonb(res));
@@ -324,7 +325,7 @@ jsonb_delete_path(PG_FUNCTION_ARGS)
 
 	it = JsonbIteratorInit(&in->root);
 
-	res = replacePath(&it, path_elems, path_nulls, path_len, &st, 0, NULL);
+	res = setPath(&it, path_elems, path_nulls, path_len, &st, 0, NULL, false);
 
 	Assert (res != NULL);
 	PG_RETURN_JSONB(JsonbValueToJsonb(res));

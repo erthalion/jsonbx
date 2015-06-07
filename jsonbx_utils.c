@@ -19,12 +19,12 @@ JsonbValue *walkJsonb(JsonbIterator **it, JsonbParseState **state, bool stop_at_
 bool untilLast(JsonbParseState **state, JsonbValue *v, uint32 token, uint32 level);
 void addJsonbToParseState(JsonbParseState **jbps, Jsonb * jb);
 
-static void replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+static void setPathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 							  int path_len, JsonbParseState **st, int level,
-							  Jsonb *newval, uint32	nelems);
-static void replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+							  Jsonb *newval, uint32	nelems, bool create);
+static void setPathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 							 int path_len, JsonbParseState **st, int level,
-							 Jsonb *newval, uint32 npairs);
+							 Jsonb *newval, uint32 npairs, bool create);
 
 
 
@@ -389,18 +389,18 @@ walkJsonb(JsonbIterator **it, JsonbParseState **state, bool stop_at_level_zero)
 }
 
 /*
- * replacePath:
- * Recursive replacement function for jsonb_replace.
- * Replace value of jsonb key or jsonb element, which can be found by the specified path on the specific level.
+ * setPath:
+ * Recursive replacement/creation function for jsonb_set.
+ * Replace/create value of jsonb key or jsonb element, which can be found by the specified path on the specific level.
  * For jbvArray level is the current element, for jbvObject is the current nesting level.
- * For each recursion step, level value will be incremented, and an array element or object key will be replaces,
+ * For each recursion step, level value will be incremented, and an array element or object key will be replaces or created,
  * if current level is path_len - 1 (it does mean, that we've reached the last element in the path).
  * If indexes will be used, the same rules implied as for jsonb_delete_idx (negative indexing and edge cases)
  */
 JsonbValue*
-replacePath(JsonbIterator **it, Datum *path_elems,
+setPath(JsonbIterator **it, Datum *path_elems,
 			  bool *path_nulls, int path_len,
-			  JsonbParseState  **st, int level, Jsonb *newval)
+			  JsonbParseState  **st, int level, Jsonb *newval, bool create)
 {
 	JsonbValue  v, *res = NULL;
 	int         r;
@@ -411,8 +411,8 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 	{
 		case WJB_BEGIN_ARRAY:
 			(void) pushJsonbValue(st, r, NULL);
-			replacePathArray(it, path_elems, path_nulls, path_len, st, level,
-							 newval, v.val.array.nElems);
+			setPathArray(it, path_elems, path_nulls, path_len, st, level,
+							 newval, v.val.array.nElems, create);
 			r = JsonbIteratorNext(it, &v, false);
 			Assert(r == WJB_END_ARRAY);
 			res = pushJsonbValue(st, r, NULL);
@@ -420,8 +420,8 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 			break;
 		case WJB_BEGIN_OBJECT:
 			(void) pushJsonbValue(st, r, NULL);
-			replacePathObject(it, path_elems, path_nulls, path_len, st, level,
-							  newval, v.val.object.nPairs);
+			setPathObject(it, path_elems, path_nulls, path_len, st, level,
+							  newval, v.val.object.nPairs, create);
 			r = JsonbIteratorNext(it, &v, true);
 			Assert(r == WJB_END_OBJECT);
 			res = pushJsonbValue(st, r, NULL);
@@ -439,12 +439,12 @@ replacePath(JsonbIterator **it, Datum *path_elems,
 }
 
 /*
- * Object walker for replacePath
+ * Object walker for setPath
  */
 static void
-replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+setPathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 				  int path_len, JsonbParseState **st, int level,
-				  Jsonb *newval, uint32	nelems)
+				  Jsonb *newval, uint32	npairs, bool create)
 {
 	JsonbValue	v;
 	int			i;
@@ -454,8 +454,21 @@ replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 	if (level >= path_len || path_nulls[level])
 		done = true;
 
+	/* empty object is a special case for create */
+	if ((npairs == 0) && create && (level == path_len - 1))
+	{
+		JsonbValue	newkey;
+
+		newkey.type = jbvString;
+		newkey.val.string.len = VARSIZE_ANY_EXHDR(path_elems[level]);
+		newkey.val.string.val = VARDATA_ANY(path_elems[level]);
+
+		(void) pushJsonbValue(st, WJB_KEY, &newkey);
+		addJsonbToParseState(st, newval);
+	}
+
 	/* iterate over object keys */
-	for (i = 0; i < nelems; i++)
+	for (i = 0; i < npairs; i++)
 	{
 		int		r = JsonbIteratorNext(it, &k, true);
 		Assert(r == WJB_KEY);
@@ -479,16 +492,27 @@ replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 					(void) pushJsonbValue(st, WJB_KEY, &k);
 					addJsonbToParseState(st, newval);
 				}
+				done = true;
 			}
 			else
 			{
 				(void) pushJsonbValue(st, r, &k);
-				replacePath(it, path_elems, path_nulls, path_len,
-							st, level + 1, newval);
+				setPath(it, path_elems, path_nulls, path_len,
+							st, level + 1, newval, create);
 			}
 		}
 		else
 		{
+			if (create && !done && level == path_len - 1 && i == npairs - 1)
+			{
+				JsonbValue new = k;
+				new.val.string.len = VARSIZE_ANY_EXHDR(path_elems[level]);
+				new.val.string.val = VARDATA_ANY(path_elems[level]);
+
+				(void) pushJsonbValue(st, WJB_KEY, &new);
+				addJsonbToParseState(st, newval);
+			}
+
 			/* We are out of the specified path, skip the rest of elements */
 			(void) pushJsonbValue(st, r, &k);
 			r = JsonbIteratorNext(it, &v, false);
@@ -519,17 +543,18 @@ replacePathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 }
 
 /*
- * Array walker for replacePath
+ * Array walker for setPath
  */
 static void
-replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
+setPathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 				 int path_len, JsonbParseState **st, int level,
-				 Jsonb *newval, uint32 npairs)
+				 Jsonb *newval, uint32 nelems, bool create)
 {
 	JsonbValue	v;
 	int			idx,
 				i;
 	char	   *badp;
+	bool		done = false;
 
 	/* If we can't convert path element to integer index,
 	 * the last element will be used.
@@ -541,7 +566,7 @@ replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 		errno = 0;
 		idx = (int) strtol(c, &badp, 10);
 		if (errno != 0 || badp == c)
-			idx = npairs;
+			idx = nelems;
 	}
 	/* Otherwise we should take care about negative indexes,
 	 * it implies the countdown from the last element.
@@ -549,22 +574,35 @@ replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 	 */
 	else
 	{
-		idx = npairs;
+		idx = nelems;
 	}
 
 	if (idx < 0)
 	{
-		if (-idx > npairs)
-			idx = npairs;
+		if (-idx > nelems)
+			idx = -1;
 		else
-			idx = npairs + idx;
+			idx = nelems + idx;
 	}
 
-	if (idx > npairs)
-		idx = npairs;
+	if (idx > 0 && idx > nelems)
+		idx = nelems;
+
+	/*
+	 * if we're creating, and idx == -1, we prepend the new value to the array
+	 * also if the array is empty - in which case we don't really care what the
+	 * idx value is
+	 */
+
+	if ((idx == -1 || nelems == 0) && create && (level == path_len - 1))
+	{
+		Assert(newval != NULL);
+		addJsonbToParseState(st, newval);
+		done = true;
+	}
 
 	/* iterate over the array elements */
-	for (i = 0; i < npairs; i++)
+	for (i = 0; i < nelems; i++)
 	{
 		int		r;
 
@@ -583,10 +621,11 @@ replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 				{
 					addJsonbToParseState(st, newval);
 				}
+				done = true;
 			}
 			else
-				(void) replacePath(it, path_elems, path_nulls, path_len,
-								   st, level + 1, newval);
+				(void) setPath(it, path_elems, path_nulls, path_len,
+								   st, level + 1, newval, create);
 		}
 		else
 		{
@@ -615,6 +654,12 @@ replacePathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 					(void) pushJsonbValue(st, r, r < WJB_BEGIN_ARRAY ? &v : NULL);
 				}
 			}
+
+			if (create && !done && level == path_len - 1 && i == nelems - 1)
+			{
+				addJsonbToParseState(st, newval);
+			}
+
 		}
 	}
 }

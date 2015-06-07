@@ -51,7 +51,12 @@ CREATE OPERATOR - (
 	PROCEDURE = jsonb_delete
 );
 
-CREATE FUNCTION jsonb_replace(jsonb,text[],jsonb)
+CREATE FUNCTION jsonb_set(
+    jsonb_in jsonb,
+    path text[],
+    replacement jsonb,
+    create_if_missing boolean DEFAULT true
+)
 RETURNS jsonb
-AS 'MODULE_PATHNAME','jsonb_replace'
+AS 'MODULE_PATHNAME','jsonb_set'
 LANGUAGE C STRICT;
