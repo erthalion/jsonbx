@@ -141,7 +141,7 @@ select jsonb_delete('{"a":1}'::jsonb, 'a');
 (1 row)
 
 select jsonb_delete('"a"'::jsonb, 'a');
-ERROR:  cannot get delete from scalar
+ERROR:  cannot delete from scalar
 select jsonb_delete('{"a":null , "b":2, "c":3}'::jsonb, 'a');
    jsonb_delete   
 ------------------
@@ -173,7 +173,7 @@ select '{"a":1}'::jsonb - 'a'::text;
 (1 row)
 
 select '"a"'::jsonb - 'a'::text;
-ERROR:  cannot get delete from scalar
+ERROR:  cannot delete from scalar
 select '{"a":1 , "b":2, "c":3}'::jsonb - 'a'::text;
      ?column?     
 ------------------
@@ -440,6 +440,63 @@ select jsonb_set('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::j
                                     jsonb_set                                    
 ---------------------------------------------------------------------------------
  {"a": 1, "b": [1, {"f": "test"}], "c": {"1": 2}, "d": {"1": [2, 3]}, "n": null}
+(1 row)
+
+-- empty structure and error conditions for delete and replace
+select '"a"'::jsonb - 'a'; -- error
+ERROR:  cannot delete from scalar
+select '{}'::jsonb - 'a';
+ ?column? 
+----------
+ {}
+(1 row)
+
+select '[]'::jsonb - 'a';
+ ?column? 
+----------
+ []
+(1 row)
+
+select '"a"'::jsonb - 1; -- error
+ERROR:  cannot delete from scalar
+select '{}'::jsonb -  1 ;
+ ?column? 
+----------
+ {}
+(1 row)
+
+select '[]'::jsonb - 1;
+ ?column? 
+----------
+ []
+(1 row)
+
+select '"a"'::jsonb - '{a}'::text[]; -- error
+ERROR:  cannot delete path in scalar
+select '{}'::jsonb - '{a}'::text[];
+ ?column? 
+----------
+ {}
+(1 row)
+
+select '[]'::jsonb - '{a}'::text[];
+ ?column? 
+----------
+ []
+(1 row)
+
+select jsonb_set('"a"','{a}','"b"'); --error
+ERROR:  cannot set path in scalar
+select jsonb_set('{}','{a}','"b"', false);
+ jsonb_set 
+-----------
+ {}
+(1 row)
+
+select jsonb_set('[]','{1}','"b"', false);
+ jsonb_set 
+-----------
+ []
 (1 row)
 
 -- jsonb_set adding instead of replacing

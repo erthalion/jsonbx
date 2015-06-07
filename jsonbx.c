@@ -124,7 +124,7 @@ jsonb_delete(PG_FUNCTION_ARGS)
 	if (JB_ROOT_IS_SCALAR(in))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("cannot get delete from scalar")));
+				 errmsg("cannot delete from scalar")));
 
 	if (JB_ROOT_COUNT(in) == 0)
 	{
@@ -182,7 +182,7 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
 	if (JB_ROOT_IS_SCALAR(in))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("cannot get delete from scalar")));
+				 errmsg("cannot delete from scalar")));
 
 	if (JB_ROOT_COUNT(in) == 0)
 	{

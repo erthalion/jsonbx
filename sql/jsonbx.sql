@@ -92,6 +92,21 @@ select jsonb_set('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::j
 select jsonb_set('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '"test"');
 select jsonb_set('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '{"f": "test"}');
 
+-- empty structure and error conditions for delete and replace
+
+select '"a"'::jsonb - 'a'; -- error
+select '{}'::jsonb - 'a';
+select '[]'::jsonb - 'a';
+select '"a"'::jsonb - 1; -- error
+select '{}'::jsonb -  1 ;
+select '[]'::jsonb - 1;
+select '"a"'::jsonb - '{a}'::text[]; -- error
+select '{}'::jsonb - '{a}'::text[];
+select '[]'::jsonb - '{a}'::text[];
+select jsonb_set('"a"','{a}','"b"'); --error
+select jsonb_set('{}','{a}','"b"', false);
+select jsonb_set('[]','{1}','"b"', false);
+
 -- jsonb_set adding instead of replacing
 
 -- prepend to array
