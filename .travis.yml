@@ -4,5 +4,7 @@ services:
 addons:
   postgresql: "9.4"
 before_script:
+  - sudo apt-get install postgresql-server-dev-all
+  - sudo apt-get install postgresql-common
   - chmod +x ./travis_test.sh
 script: ./travis_test.sh
