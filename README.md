@@ -11,7 +11,7 @@ List of implemented functions
 * jsonb_delete(jsonb, text)
 * jsonb_delete_idx(jsonb, int)
 * jsonb_delete_path(jsonb, text[])
-* jsonb_replace(jsonb, text[], jsonb)
+* jsonb_set(jsonb, text[], jsonb)
 
 List of implemented operators
 ---------------------------------
