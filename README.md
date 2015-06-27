@@ -13,7 +13,7 @@ List of implemented functions
 * jsonb_delete(jsonb, text)
 * jsonb_delete_idx(jsonb, int)
 * jsonb_delete_path(jsonb, text[])
-* jsonb_set(jsonb, text[], jsonb)
+* jsonb_set(jsonb, text[], jsonb, boolean)
 
 List of implemented operators
 ---------------------------------
@@ -22,3 +22,16 @@ List of implemented operators
 * delete key operator (jsonb - text)
 * delete key by index operator (jsonb - int)
 * delete key by path operator (jsonb - text[])
+
+License
+-------
+
+jsonbx is licensed under [the same license as PostgreSQL itself](http://www.postgresql.org/about/licence/)
+
+Contributors
+------------
+
+jsonbx was created by Dmitry Dolgov
+portions written by Andrew Dunstan
+
+
