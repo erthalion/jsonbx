@@ -14,7 +14,7 @@
       "runtime": {
          "requires": {
             "PostgreSQL": ">= 9.4.0, < 9.5.0"
-         },
+         }
       }
    },
    "provides": {
