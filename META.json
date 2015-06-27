@@ -21,7 +21,7 @@
       }
    },
    "provides": {
-     "jsquery": {
+     "jsonbx": {
        "file": "sql/jsonbx.sql",
        "docfile": "README.md",
        "version": "1.0.0",
