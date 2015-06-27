@@ -1,0 +1,53 @@
+{
+   "name": "jsonbx",
+   "abstract": "Backport of PostgreSQL 9.5 JSONB features for 9.4",
+   "description": "PostgreSQL 9.5 comes with a bunch of new functions and operators for JSONB, including ||, json_set and json_delete.  This extension makes them available to users of PostgreSQL 9.4",
+   "version": "1.0.0",
+   "maintainer": [
+      "Dmitry Dolgov <9erthalion6@gmail.com>",
+      "Andrew Dunstan <andrew@pgexperts.com>"
+   ],
+   "license": {
+      "PostgreSQL": "http://www.postgresql.org/about/licence"
+   },
+   "prereqs": {
+      "runtime": {
+         "requires": {
+            "PostgreSQL": "9.4.0"
+         },
+         "recommends": {
+            "PostgreSQL": "9.4.0"
+         }
+      }
+   },
+   "provides": {
+     "jsquery": {
+       "file": "sql/jsonbx.sql",
+       "docfile": "README.md",
+       "version": "1.0.0",
+       "abstract": "Extra JSONB functions and operators for PostgreSQL 9.4"
+     }
+   },
+   "resources": {
+      "homepage": "https://github.com/erthalion/jsonbx",
+      "bugtracker": {
+         "web": "https://github.com/erthalion/jsonbx/issues"
+      },
+      "repository": {
+        "url":  "https://github.com/erthalion/jsonbx.git",
+        "web":  "https://github.com/erthalion/jsonbx",
+        "type": "git"
+      }
+   },
+   "generated_by": "Josh Berkus",
+   "meta-spec": {
+      "version": "1.0.0",
+      "url": "http://pgxn.org/meta/spec.txt"
+   },
+   "tags": [
+        "JSON",
+        "function",
+        "operator",
+        "backport"
+   ]
+}
