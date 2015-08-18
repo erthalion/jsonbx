@@ -3,25 +3,26 @@
 jsonbx
 ======
 
-As you know, PostgreSQL introduced Json(b) [support](http://obartunov.livejournal.com/177247.html) at the 9.4 version, and hstore v2.0 saved in separate [repository](http://www.sigaev.ru/git/gitweb.cgi?p=hstore.git;a=summary). But although PostgreSQL has this support at the core level, there are many useful functions, which wasn't ported to Json(b) from hstore v2.0 and json. [Here](https://gist.githubusercontent.com/erthalion/10890778/raw/hstore_to_jsonb.rst) is a review of the missing Json(b) functions, which will be implemented in this repo.
+As you know, PostgreSQL introduced Jsonb [support](http://obartunov.livejournal.com/177247.html) at the 9.4 version, and hstore v2.0 saved in separate [repository](http://www.sigaev.ru/git/gitweb.cgi?p=hstore.git;a=summary). But although PostgreSQL has this support at the core level, there are many useful functions, which wasn't implemented for Jsonb, particularly there are not so many functions and operators for manipulation with jsonb. This repo will accumulate the implementation such kind of functions. Part of this functionality was already incorporated into PostgreSQL 9.5 (see this [commit](http://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=c6947010ceb42143d9f047c65c1eac2b38928ab7)).
+
 
 List of implemented functions
 ---------------------------------
 
-* jsonb_indent
-* jsonb_concat
-* jsonb_delete(jsonb, text)
-* jsonb_delete_idx(jsonb, int)
-* jsonb_delete_path(jsonb, text[])
-* jsonb_set(jsonb, text[], jsonb, boolean)
+* jsonb_pretty (in 9.5)
+* jsonb_concat (in 9.5)
+* jsonb_delete(jsonb, text) (in 9.5)
+* jsonb_delete_idx(jsonb, int) (in 9.5)
+* jsonb_delete_path(jsonb, text[]) (in 9.5)
+* jsonb_set(jsonb, text[], jsonb) (in 9.5)
 
 List of implemented operators
 ---------------------------------
 
-* concatenation operator (||)
-* delete key operator (jsonb - text)
-* delete key by index operator (jsonb - int)
-* delete key by path operator (jsonb - text[])
+* concatenation operator (||) (in 9.5)
+* delete key operator (jsonb - text) (in 9.5)
+* delete key by index operator (jsonb - int) (in 9.5)
+* delete key by path operator (jsonb - text[]) (in 9.5)
 
 License
 -------
@@ -33,5 +34,3 @@ Contributors
 
 jsonbx was created by Dmitry Dolgov
 portions written by Andrew Dunstan
-
-
