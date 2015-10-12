@@ -1,5 +1,7 @@
 #include "postgres.h"
 
+#include <limits.h>
+
 #include "utils/builtins.h"
 #include "utils/json.h"
 #include "utils/jsonb.h"
@@ -406,6 +408,8 @@ setPath(JsonbIterator **it, Datum *path_elems,
 	int         r;
 
 	r = JsonbIteratorNext(it, &v, false);
+	if (path_nulls[level])
+		elog(ERROR, "path element at the position %d is NULL", level + 1);
 
 	switch (r)
 	{
@@ -562,11 +566,16 @@ setPathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 	if (level < path_len && !path_nulls[level])
 	{
 		char	   *c = VARDATA_ANY(path_elems[level]);
+		long		lindex;
 
 		errno = 0;
-		idx = (int) strtol(c, &badp, 10);
-		if (errno != 0 || badp == c)
-			idx = nelems;
+		lindex = strtol(c, &badp, 10);
+		if (errno != 0 || badp == c || *badp != '\0' || lindex > INT_MAX ||
+			lindex < INT_MIN)
+			elog(ERROR, "path element at the position %d is not an integer",
+						level + 1);
+		else
+			idx = lindex;
 	}
 	/* Otherwise we should take care about negative indexes,
 	 * it implies the countdown from the last element.
