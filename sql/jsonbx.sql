@@ -78,6 +78,8 @@ select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{a}'::text[])
 select pg_column_size('{"a":1, "b":2, "c":3}'::jsonb - '{}'::text[])
          = pg_column_size('{"a":1, "b":2, "c":3}'::jsonb);
 
+select jsonb_set('{"a":1,"b":[0,1,2,3,4,5,6,7,8,9,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"c":{"d":1}}','{"b",-101}','123');
+
 select jsonb_set('"a"'::jsonb, '{a}', '[1,2,3]');
 select jsonb_set('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{n}', '[1,2,3]');
 select jsonb_set('{"n":null, "a":1, "b":[1,2], "c":{"1":2}, "d":{"1":[2,3]}}'::jsonb, '{b,-1}', '[1,2,3]');

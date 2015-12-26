@@ -565,7 +565,7 @@ setPathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 	 */
 	if (level < path_len && !path_nulls[level])
 	{
-		char	   *c = VARDATA_ANY(path_elems[level]);
+		char	   *c = TextDatumGetCString(path_elems[level]);
 		long		lindex;
 
 		errno = 0;
